@@ -158,6 +158,21 @@ class DatabaseConnectionHandlerSpec extends Specification with DatabaseTestHelpe
       }
 
     }
+    
+    "select rows that has duplicate column names" in {
+        
+      withHandler {
+        handler =>
+          val result = executeQuery(handler, "SELECT 1 COL, 2 COL")
+
+          val row = result.rows.get(0)
+
+          row(0) === 1
+          row(1) === 2
+
+      }
+        
+    }
 
     "execute a prepared statement" in {
 
@@ -361,7 +376,18 @@ class DatabaseConnectionHandlerSpec extends Specification with DatabaseTestHelpe
       }
 
     }
-
+    
+    "support prepared statement with more than 64 characters" in {
+        withHandler {
+        handler =>
+          executeDdl( handler, this.messagesCreate )
+          val stmt = "SELECT id, content, moment FROM messages WHERE id is not null AND content is not null "
+          executePreparedStatement(handler, stmt + "AND moment is not null")
+          executePreparedStatement(handler, stmt + "AND moment is null")
+          ok
+      }
+    }
+    
   }
 
 }
