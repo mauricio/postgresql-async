@@ -348,7 +348,8 @@ class PreparedStatementsSpec extends Specification with ConnectionHelper {
 
       val create = """CREATE TEMPORARY TABLE posts (
                      |       id INT NOT NULL AUTO_INCREMENT,
-                     |       some_text TEXT not null,
+                     |       some_text TEXT NOT NULL,
+                     |       some_date DATE,
                      |       primary key (id) )""".stripMargin
 
       val insert = "insert into posts (some_text) values (?)"
