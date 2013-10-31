@@ -31,7 +31,7 @@ class MessageDecoderSpec extends Specification {
 
   "message decoder" should {
 
-    "not try to decode if there is not enought data available" in {
+    "not try to decode if there is not enough data available" in {
 
       val buffer = Unpooled.buffer()
 
@@ -44,7 +44,7 @@ class MessageDecoderSpec extends Specification {
       out.isEmpty
     }
 
-    "should not try to decode if there is a type and lenght but it's not long enough" in {
+    "should not try to decode if there is a type and length but it's not long enough" in {
 
       val buffer = Unpooled.buffer()
 
