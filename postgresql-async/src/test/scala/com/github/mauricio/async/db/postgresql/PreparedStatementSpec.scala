@@ -244,6 +244,14 @@ class PreparedStatementSpec extends Specification with DatabaseTestHelper {
 
     }
 
+    "support select bind value" in {
+        withHandler {
+            handler =>
+                val string = "someString"
+                val result = executePreparedStatement(handler, "SELECT ?", Array(string)).rows.get
+                result(0)(0) == string
+        }
+    }.pendingUntilFixed("select bind values")
   }
 
 }
