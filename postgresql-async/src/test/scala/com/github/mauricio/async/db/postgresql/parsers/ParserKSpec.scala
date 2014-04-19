@@ -39,6 +39,7 @@ class ParserKSpec extends Specification {
         data.processId === 10,
         data.secretKey === 20
       )
+      success
     }
 
   }

@@ -159,6 +159,8 @@ class TimeAndDateSpec extends Specification with DatabaseTestHelper {
 
 
       }
+
+      success
     }
 
     "support current_timestamp with timezone" in {

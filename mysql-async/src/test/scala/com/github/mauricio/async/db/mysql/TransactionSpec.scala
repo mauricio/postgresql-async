@@ -63,6 +63,7 @@ class TransactionSpec extends Specification with ConnectionHelper {
           }
       }
 
+      success
     }
 
     "should make a connection invalid and not return it to the pool if it raises an exception" in {
@@ -96,6 +97,7 @@ class TransactionSpec extends Specification with ConnectionHelper {
 
       }
 
+      success
     }
 
   }

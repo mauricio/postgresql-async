@@ -137,6 +137,7 @@ class PreparedStatementSpec extends Specification with DatabaseTestHelper {
 
       }
 
+      success
     }
 
     "support prepared statement with Option parameters (Some/None)" in {
