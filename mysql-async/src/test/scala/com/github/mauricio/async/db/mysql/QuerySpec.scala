@@ -182,7 +182,7 @@ class QuerySpec extends Specification with ConnectionHelper {
           ideasMatcher(executeQuery(connection, selectIdeas))
 
       }
-
+      success
     }
 
     "support BIT type" in {
