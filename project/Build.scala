@@ -19,7 +19,7 @@ object ProjectBuild extends Build {
     base = file(commonName),
     settings = Configuration.baseSettings ++ Seq(
       name := commonName,
-      libraryDependencies := Configuration.commonDependencies
+      libraryDependencies ++= Configuration.commonDependencies
     )
   )
 
