@@ -49,7 +49,7 @@ class PostgreSQLConnectionFactory(
   import PostgreSQLConnectionFactory.log
 
   def create: PostgreSQLConnection = {
-    val connection = new PostgreSQLConnection(configuration, group = group, executionContext = executionContext)
+    val connection = new PostgreSQLConnection(configuration, group = group)(executionContext)
     Await.result(connection.connect, configuration.connectTimeout)
 
     connection

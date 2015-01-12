@@ -29,6 +29,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait AsyncObjectPool[T] {
 
+  implicit val executionContext: ExecutionContext
+
   /**
    *
    * Returns an object from the pool to the callee with the returned future. If the pool can not create or enqueue
@@ -70,7 +72,7 @@ trait AsyncObjectPool[T] {
    * @return f wrapped with take and giveBack
    */
 
-  def use[A](f: (T) => Future[A])(implicit executionContext: ExecutionContext): Future[A] =
+  def use[A](f: (T) => Future[A]): Future[A] =
     take.flatMap { item =>
       f(item) recoverWith {
         case error => giveBack(item).flatMap(_ => Future.failed(error))
