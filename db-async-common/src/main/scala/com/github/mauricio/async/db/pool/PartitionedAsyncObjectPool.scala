@@ -1,8 +1,6 @@
 package com.github.mauricio.async.db.pool
 
-import scala.concurrent.Future
-import com.github.mauricio.async.db.util.ExecutorServiceUtils
-import scala.concurrent.Promise
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import java.util.concurrent.ConcurrentHashMap
 import scala.util.Success
 import scala.util.Failure
@@ -10,10 +8,9 @@ import scala.util.Failure
 class PartitionedAsyncObjectPool[T](
     factory: ObjectFactory[T],
     configuration: PoolConfiguration,
-    numberOfPartitions: Int)
+    numberOfPartitions: Int)(
+    implicit val executionContext: ExecutionContext)
     extends AsyncObjectPool[T] {
-
-    import ExecutorServiceUtils.CachedExecutionContext
 
     private val pools =
         (0 until numberOfPartitions)

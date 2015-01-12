@@ -41,8 +41,8 @@ object MySQLConnection {
 class MySQLConnection(
                        configuration: Configuration,
                        charsetMapper: CharsetMapper = CharsetMapper.Instance,
-                       group : EventLoopGroup = NettyUtils.DefaultEventLoopGroup,
-                       executionContext : ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
+                       group : EventLoopGroup = NettyUtils.DefaultEventLoopGroup)(
+                       implicit val executionContext : ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
                        )
   extends MySQLHandlerDelegate
   with Connection
@@ -56,14 +56,12 @@ class MySQLConnection(
 
   private final val connectionCount = MySQLConnection.Counter.incrementAndGet()
   private final val connectionId = s"[mysql-connection-$connectionCount]"
-  private implicit val internalPool = executionContext
 
   private final val connectionHandler = new MySQLConnectionHandler(
     configuration,
     charsetMapper,
     this,
     group,
-    executionContext,
     connectionId)
 
   private final val connectionPromise = Promise[Connection]()

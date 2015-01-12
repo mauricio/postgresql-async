@@ -20,7 +20,7 @@ import com.github.mauricio.async.db.util.{Log, Worker}
 import java.util.concurrent.atomic.AtomicLong
 import java.util.{TimerTask, Timer}
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.{Promise, Future}
+import scala.concurrent.{ExecutionContext, Promise, Future}
 import scala.util.{Failure, Success}
 
 object SingleThreadedAsyncObjectPool {
@@ -44,7 +44,9 @@ object SingleThreadedAsyncObjectPool {
 class SingleThreadedAsyncObjectPool[T](
                                         factory: ObjectFactory[T],
                                         configuration: PoolConfiguration
-                                        ) extends AsyncObjectPool[T] {
+                                        )(
+                                        implicit val executionContext : ExecutionContext)
+  extends AsyncObjectPool[T] {
 
   import SingleThreadedAsyncObjectPool.{Counter, log}
 

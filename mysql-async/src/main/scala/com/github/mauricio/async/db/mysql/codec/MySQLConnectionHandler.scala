@@ -43,12 +43,10 @@ class MySQLConnectionHandler(
                               charsetMapper: CharsetMapper,
                               handlerDelegate: MySQLHandlerDelegate,
                               group : EventLoopGroup,
-                              executionContext : ExecutionContext,
-                              connectionId : String
-                              )
+                              connectionId : String)(
+                              implicit executionContext : ExecutionContext)
   extends SimpleChannelInboundHandler[Object] {
 
-  private implicit val internalPool = executionContext
   private final val log = Log.getByName(s"[connection-handler]${connectionId}")
   private final val bootstrap = new Bootstrap().group(this.group)
   private final val connectionPromise = Promise[MySQLConnectionHandler]

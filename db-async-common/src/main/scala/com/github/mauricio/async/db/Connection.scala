@@ -16,7 +16,7 @@
 
 package com.github.mauricio.async.db
 
-import concurrent.Future
+import concurrent.{ExecutionContext, Future}
 
 /**
  *
@@ -43,6 +43,8 @@ import concurrent.Future
  */
 
 trait Connection {
+
+  implicit val executionContext: ExecutionContext
 
   /**
    *
@@ -124,7 +126,7 @@ trait Connection {
    * @return result of f, conditional on transaction operations succeeding
    */
 
-  def inTransaction[A](f : Connection => Future[A])(implicit executionContext : scala.concurrent.ExecutionContext) : Future[A] = {
+  def inTransaction[A](f : Connection => Future[A]) : Future[A] = {
     this.sendQuery("BEGIN").flatMap { _ =>
       val p = scala.concurrent.Promise[A]()
       f(this).onComplete { r =>

@@ -49,8 +49,8 @@ class PostgreSQLConnectionHandler
   encoderRegistry: ColumnEncoderRegistry,
   decoderRegistry: ColumnDecoderRegistry,
   connectionDelegate : PostgreSQLConnectionDelegate,
-  group : EventLoopGroup,
-  executionContext : ExecutionContext
+  group : EventLoopGroup)(
+  implicit executionContext : ExecutionContext
   )
   extends SimpleChannelInboundHandler[Object]
 {
@@ -64,7 +64,6 @@ class PostgreSQLConnectionHandler
     "DateStyle" -> "ISO",
     "extra_float_digits" -> "2")
 
-  private implicit final val _executionContext = executionContext
   private final val bootstrap = new Bootstrap()
   private final val connectionFuture = Promise[PostgreSQLConnectionHandler]()
   private final val disconnectionPromise = Promise[PostgreSQLConnectionHandler]()
