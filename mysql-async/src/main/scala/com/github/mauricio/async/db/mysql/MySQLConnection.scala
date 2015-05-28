@@ -16,39 +16,39 @@
 
 package com.github.mauricio.async.db.mysql
 
+import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
+import java.util.concurrent.{TimeUnit, TimeoutException}
+
 import com.github.mauricio.async.db._
 import com.github.mauricio.async.db.exceptions._
-import com.github.mauricio.async.db.mysql.codec.{MySQLHandlerDelegate, MySQLConnectionHandler}
+import com.github.mauricio.async.db.mysql.codec.{MySQLConnectionHandler, MySQLHandlerDelegate}
 import com.github.mauricio.async.db.mysql.exceptions.MySQLException
 import com.github.mauricio.async.db.mysql.message.client._
 import com.github.mauricio.async.db.mysql.message.server._
 import com.github.mauricio.async.db.mysql.util.CharsetMapper
 import com.github.mauricio.async.db.util.ChannelFutureTransformer.toFuture
 import com.github.mauricio.async.db.util._
-import java.util.concurrent.atomic.{AtomicLong,AtomicReference}
-import scala.concurrent.{ExecutionContext, Promise, Future}
-import io.netty.channel.{EventLoopGroup, ChannelHandlerContext}
-import scala.util.Failure
-import scala.Some
-import scala.util.Success
+import io.netty.channel.{ChannelHandlerContext, EventLoopGroup}
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Failure, Success}
 
 object MySQLConnection {
   final val Counter = new AtomicLong()
-  final val MicrosecondsVersion = Version(5,6,0)
+  final val MicrosecondsVersion = Version(5, 6, 0)
   final val log = Log.get[MySQLConnection]
 }
 
 class MySQLConnection(
                        configuration: Configuration,
                        charsetMapper: CharsetMapper = CharsetMapper.Instance,
-                       group : EventLoopGroup = NettyUtils.DefaultEventLoopGroup,
-                       executionContext : ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
+                       group: EventLoopGroup = NettyUtils.DefaultEventLoopGroup,
+                       executionContext: ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
                        )
   extends MySQLHandlerDelegate
-  with Connection
-{
+  with Connection {
 
-  import MySQLConnection.log
+  import com.github.mauricio.async.db.mysql.MySQLConnection.log
 
   // validate that this charset is supported
   charsetMapper.toInt(configuration.charset)
@@ -71,12 +71,14 @@ class MySQLConnection(
 
   private val queryPromiseReference = new AtomicReference[Option[Promise[QueryResult]]](None)
   private var connected = false
-  private var _lastException : Throwable = null
-  private var serverVersion : Version = null
+  private var _lastException: Throwable = null
+  private var serverVersion: Version = null
 
   def version = this.serverVersion
-  def lastException : Throwable = this._lastException
-  def count : Long = this.connectionCount
+
+  def lastException: Throwable = this._lastException
+
+  def count: Long = this.connectionCount
 
   def connect: Future[Connection] = {
     this.connectionHandler.connect.onFailure {
@@ -87,7 +89,7 @@ class MySQLConnection(
   }
 
   def close: Future[Connection] = {
-    if ( this.isConnected ) {
+    if (this.isConnected) {
       if (!this.disconnectionPromise.isCompleted) {
         val exception = new DatabaseException("Connection is being closed")
         exception.fillInStackTrace()
@@ -125,14 +127,14 @@ class MySQLConnection(
     this.setException(exception)
   }
 
-  private def setException( t : Throwable ) {
+  private def setException(t: Throwable) {
     this._lastException = t
     this.connectionPromise.tryFailure(t)
     this.failQueryPromise(t)
   }
 
   override def onOk(message: OkMessage) {
-    if ( !this.connectionPromise.isCompleted ) {
+    if (!this.connectionPromise.isCompleted) {
       log.debug("Connected to database")
       this.connectionPromise.success(this)
     } else {
@@ -179,14 +181,25 @@ class MySQLConnection(
     ))
   }
 
-  override def switchAuthentication( message : AuthenticationSwitchRequest ) {
-    this.connectionHandler.write(new AuthenticationSwitchResponse( configuration.password, message ))
+  override def switchAuthentication(message: AuthenticationSwitchRequest) {
+    this.connectionHandler.write(new AuthenticationSwitchResponse(configuration.password, message))
   }
 
   def sendQuery(query: String): Future[QueryResult] = {
     this.validateIsReadyForQuery()
     val promise = Promise[QueryResult]
     this.setQueryPromise(promise)
+    configuration.queryTimeout.map(duration => {
+      val runnable = new Runnable {
+        override def run(): Unit = {
+          if (promise.tryFailure(new TimeoutException())) {
+            log.debug("query {} timed out", query)
+          }
+        }
+      }
+      group.schedule(runnable, duration.toMillis, TimeUnit.MILLISECONDS)
+    })
+
     this.connectionHandler.write(new QueryMessage(query))
     promise.future
   }
@@ -230,8 +243,8 @@ class MySQLConnection(
 
   def sendPreparedStatement(query: String, values: Seq[Any]): Future[QueryResult] = {
     this.validateIsReadyForQuery()
-    val totalParameters = query.count( _ == '?')
-    if ( values.length != totalParameters ) {
+    val totalParameters = query.count(_ == '?')
+    if (values.length != totalParameters) {
       throw new InsufficientParametersException(totalParameters, values)
     }
     val promise = Promise[QueryResult]
@@ -246,7 +259,7 @@ class MySQLConnection(
   }
 
   private def validateIsReadyForQuery() {
-    if ( isQuerying ) {
+    if (isQuerying) {
       throw new ConnectionStillRunningQueryException(this.connectionCount, false)
     }
   }
@@ -258,7 +271,7 @@ class MySQLConnection(
       throw new ConnectionStillRunningQueryException(this.connectionCount, true)
   }
 
-  private def clearQueryPromise : Option[Promise[QueryResult]] = {
+  private def clearQueryPromise: Option[Promise[QueryResult]] = {
     this.queryPromiseReference.getAndSet(None)
   }
 
