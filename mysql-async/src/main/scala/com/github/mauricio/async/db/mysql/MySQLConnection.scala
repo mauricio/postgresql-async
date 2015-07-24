@@ -16,6 +16,7 @@
 
 package com.github.mauricio.async.db.mysql
 
+
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 
@@ -30,6 +31,7 @@ import com.github.mauricio.async.db.util.ChannelFutureTransformer.toFuture
 import com.github.mauricio.async.db.util._
 import io.netty.channel.{ChannelHandlerContext, EventLoopGroup}
 
+import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
 
@@ -189,15 +191,17 @@ class MySQLConnection(
     val promise = Promise[QueryResult]()
     this.setQueryPromise(promise)
     this.connectionHandler.write(new QueryMessage(query))
-    addTimeout(promise)
+    if (configuration.queryTimeout != Duration.Inf) {
+      addTimeout(promise)
+    }
 
     promise.future
   }
 
   private def addTimeout(promise: Promise[QueryResult]): Unit = {
     this.connectionHandler.schedule(
-      promise.tryFailure(new TimeoutException(s"response took too long to return(${configuration.requestTimeout})")),
-      configuration.requestTimeout)
+      promise.tryFailure(new TimeoutException(s"Query took too long to return(${configuration.queryTimeout})")),
+      configuration.queryTimeout)
   }
 
   private def failQueryPromise(t: Throwable) {
