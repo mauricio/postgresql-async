@@ -248,7 +248,9 @@ class MySQLConnection(
     val promise = Promise[QueryResult]()
     this.setQueryPromise(promise)
     this.connectionHandler.sendPreparedStatement(query, values)
-    addTimeout(promise)
+    if (configuration.queryTimeout != Duration.Inf) {
+      addTimeout(promise)
+    }
 
     promise.future
   }
