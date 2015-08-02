@@ -50,6 +50,7 @@ object Configuration {
 
   val specs2Dependency = "org.specs2" %% "specs2" % "2.3.11" % "test"
   val logbackDependency = "ch.qos.logback" % "logback-classic" % "1.1.3" % "test"
+  val reactiveStreamsDependency = "org.reactivestreams" % "reactive-streams" % "1.0.0"
 
   val commonDependencies = Seq(
     "org.slf4j" % "slf4j-api" % "1.7.12",
@@ -57,13 +58,15 @@ object Configuration {
     "org.joda" % "joda-convert" % "1.5",
     "io.netty" % "netty-all" % "4.0.29.Final",
     "org.javassist" % "javassist" % "3.20.0-GA",
+    reactiveStreamsDependency,
     specs2Dependency,
     logbackDependency
   )
 
   val implementationDependencies = Seq(
     specs2Dependency,
-    logbackDependency
+    logbackDependency,
+    reactiveStreamsDependency
   )
 
   val baseSettings = Defaults.defaultSettings ++ Seq(
