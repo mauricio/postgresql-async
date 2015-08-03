@@ -31,25 +31,26 @@ class RowDataSubscriptionSpec extends Specification {
   sequential
 
   "Positive flow" >> {
+    val delegate = new TestRowDataSubscriptionDelegate()
     val subscriber = new TestSubscriber()
-    val subscription = newSubscription(subscriber)
+    val subscription = newSubscription(subscriber, delegate, bufferSize = 10)
     "Subscription should call onSubscribe" in {
       subscriber.subscribed must beTrue
     }
-    "nextRow should be preserved" in {
-      subscription.nextRow(0)
-      subscriber.lastRow must_== -1
-      subscription.rows must haveSize(1)
-    }
-    "and send when it is requested by calling onNext" in {
+    "request should not affect on rows" in {
       subscription.request(1)
+      subscriber.lastRow must_== -1
+    }
+    "nextRow should be sent" in {
+      subscription.nextRow(0)
       subscriber.lastRow must_== 0
     }
-    "next rows should be again preserved" in {
+    "next rows should be preserved" in {
       subscription.nextRow(1)
       subscription.nextRow(2)
       subscription.nextRow(3)
       subscriber.lastRow must_== 0
+      subscription.rows must haveSize(3)
     }
     "and send when it is requested but not more than the total number requested" in {
       subscription.request(2)
@@ -66,9 +67,40 @@ class RowDataSubscriptionSpec extends Specification {
     }
   }
 
-  "When it is canceled it should stop sending and preserving rows" >> {
+  "Delegate" >> {
+    val delegate = new TestRowDataSubscriptionDelegate()
     val subscriber = new TestSubscriber()
-    val subscription = newSubscription(subscriber)
+    val subscription = newSubscription(subscriber, delegate, bufferSize = 2)
+    "delegate should not be started or paused" >> {
+      delegate.started must beFalse
+    }
+    "request should not cause pause" >> {
+      subscription.request(1)
+      delegate.paused must beFalse
+    }
+    "sending 2 rows should not cause pause" >> {
+      subscription.nextRow(0)
+      subscription.nextRow(1)
+      delegate.paused must beFalse
+    }
+    "sending 3nd row should not cause pause" >> {
+      subscription.nextRow(1)
+      delegate.paused must beTrue
+    }
+    "continue should be called after request" >> {
+      subscription.request(1)
+      delegate.paused must beFalse
+    }
+    "cancel should be called after cancel" >> {
+      subscription.cancel()
+      delegate.cancelled must beTrue
+    }
+  }
+
+  "When it is canceled it should stop sending and preserving rows" >> {
+    val delegate = new TestRowDataSubscriptionDelegate()
+    val subscriber = new TestSubscriber()
+    val subscription = newSubscription(subscriber, delegate, bufferSize = 10)
     subscription.nextRow(0)
     subscription.request(1)
     subscription.nextRow(1)
@@ -76,6 +108,8 @@ class RowDataSubscriptionSpec extends Specification {
     subscription.nextRow(2)
     subscription.rows must haveSize(0)
     subscriber.lastRow must_== 0
+    delegate.started must beTrue
+    delegate.cancelled must beTrue
   }
 
   val attemptsCount = 1000
@@ -90,16 +124,21 @@ class RowDataSubscriptionSpec extends Specification {
   "Thread safety" ! attempts {_ =>
     val subscriber = new TestSubscriber()
     implicit val context = ExecutionContext.global
-    val subscription = new RowDataSubscription(subscriber)
     val count = 1000
-    context.execute(new Runnable {
-      override def run(): Unit = {
-        for (row <- 0 until count) {
-          subscription.nextRow(row)
-        }
-        subscription.complete()
+    val delegate = new TestRowDataSubscriptionDelegate() {
+      override def start(subscription: RowDataSubscription): Unit = {
+        super.start(subscription)
+        context.execute(new Runnable {
+          override def run(): Unit = {
+            for (row <- 0 until count) {
+              subscription.nextRow(row)
+            }
+            subscription.complete()
+          }
+        })
       }
-    })
+    }
+    val subscription = new RowDataSubscription(subscriber, delegate, bufferSize = 10)
     context.execute(new Runnable {
       override def run(): Unit = {
         for (row <- 0 until count) {
@@ -117,29 +156,41 @@ class RowDataSubscriptionSpec extends Specification {
     subscriber.lastRowError must beFalse
     subscriber.completed must beTrue
     subscriber.lastRow mustEqual count - 1
+    delegate.started must beTrue
+    delegate.cancelled must beFalse
   }
 
   "Thread safety for cancel" ! attempts {_ =>
     val subscriber = new TestSubscriber()
     implicit val context = ExecutionContext.global
-    val subscription = new RowDataSubscription(subscriber)
-    val count = 1000
-    context.execute(new Runnable {
-      override def run(): Unit = {
-        for (row <- 0 until count + 10) {
-          subscription.nextRow(row)
-        }
-        subscription.complete()
-      }
-    })
+    val count = 10
     val canceledPromise = Promise[Unit]()
+
+    val delegate = new TestRowDataSubscriptionDelegate() {
+      override def start(subscription: RowDataSubscription): Unit = {
+        super.start(subscription)
+        context.execute(new Runnable {
+          override def run(): Unit = {
+            for (row <- 0 until count + 10) {
+              subscription.nextRow(row)
+            }
+            subscription.complete()
+          }
+        })
+      }
+
+      override def cancel(subscription: RowDataSubscription): Unit = {
+        super.cancel(subscription)
+        canceledPromise.success()
+      }
+    }
+    val subscription = new RowDataSubscription(subscriber, delegate, bufferSize = 1)
     context.execute(new Runnable {
       override def run(): Unit = {
         for (row <- 0 until count) {
           subscription.request(1)
         }
         subscription.cancel()
-        canceledPromise.success()
       }
     })
     Await.ready(canceledPromise.future, Duration(10, TimeUnit.SECONDS))
@@ -147,9 +198,12 @@ class RowDataSubscriptionSpec extends Specification {
     subscriber.lastRowError must beFalse
     subscriber.completed must beFalse
     subscriber.lastRow must beLessThanOrEqualTo(count - 1)
+    delegate.started must beTrue
+    delegate.cancelled must beTrue
   }
 
-  def newSubscription(subscriber : TestSubscriber) = new RowDataSubscription(subscriber)(SameThreadExecutionContext)
+  def newSubscription(subscriber : TestSubscriber, delegate : RowDataSubscriptionDelegate, bufferSize : Int) =
+    new RowDataSubscription(subscriber, delegate, bufferSize)(SameThreadExecutionContext)
 
   implicit def intToTestRowData(rowNumber : Int) : RowData = TestRowData(rowNumber)
   case class TestRowData(rowNumber : Int) extends RowData {
@@ -200,6 +254,44 @@ class RowDataSubscriptionSpec extends Specification {
 
     override def reportFailure(t: Throwable): Unit ={
 
+    }
+  }
+
+  class TestRowDataSubscriptionDelegate extends RowDataSubscriptionDelegate {
+    var cancelled = false
+    override def cancel(subscription: RowDataSubscription): Unit = {
+      if (!started) {
+        throw new IllegalStateException("Not started")
+      }
+      if (cancelled) {
+        throw new IllegalStateException("Already canceled")
+      }
+      cancelled = true
+    }
+    var paused = false
+    override def pause(subscription: RowDataSubscription): Unit = {
+      if (paused) {
+        throw new IllegalStateException("Already paused")
+      }
+      if (!started) {
+        throw new IllegalStateException("Not started")
+      }
+      paused = true
+    }
+
+    override def continue(subscription: RowDataSubscription): Unit = {
+      if (!paused) {
+        throw new IllegalStateException("Not paused")
+      }
+      if (!started) {
+        throw new IllegalStateException("Not started")
+      }
+      paused = false
+    }
+
+    var started = false
+    override def start(subscription: RowDataSubscription): Unit = {
+      started = true
     }
   }
 }

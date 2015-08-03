@@ -25,23 +25,39 @@ import org.reactivestreams.{Subscriber, Subscription}
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 
+trait RowDataSubscriptionDelegate {
+  def start(subscription: RowDataSubscription)
+  def cancel(subscription: RowDataSubscription)
+  def pause(subscription: RowDataSubscription)
+  def continue(subscription: RowDataSubscription)
+}
 
-class RowDataSubscription(val subscriber: Subscriber[RowData])(implicit executionContext: ExecutionContext) extends Subscription with Runnable {
+final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val delegate: RowDataSubscriptionDelegate, val bufferSize : Int)
+                               (implicit executionContext: ExecutionContext) extends Subscription with Runnable
+{
   private val on = new AtomicBoolean(false)
-  private var stopped = false
+  private val needToCallCancel = new AtomicBoolean(false)
+  private var started = false
+  private var paused = false
+  @volatile private var stopped = false
   private var completed = false
   private[util] val rows = new ConcurrentLinkedQueue[RowData]()
   private val demand = new AtomicLong(0)
   subscriber.onSubscribe(this)
 
   override def cancel() {
+    needToCallCancel.set(true)
     stopped = true
     tryScheduleToExecute()
   }
 
-  override final def request(n: Long) {
-    demand.addAndGet(n)
-    tryScheduleToExecute()
+  override def request(n: Long) {
+    if (n <= 0) {
+      terminateDueTo(new IllegalArgumentException(s"Requested number $n <= 0"))
+    } else {
+      demand.addAndGet(n)
+      tryScheduleToExecute()
+    }
   }
 
   // Should be called by one thread only
@@ -50,6 +66,10 @@ class RowDataSubscription(val subscriber: Subscriber[RowData])(implicit executio
       if (!stopped) {
         if (demand.get() > 0) {
           if (rows.isEmpty) {
+            if (!started) {
+              delegate.start(this)
+              started = true
+            }
             subscriber.onNext(rowData)
             demand.decrementAndGet()
             on.set(false)
@@ -59,8 +79,15 @@ class RowDataSubscription(val subscriber: Subscriber[RowData])(implicit executio
           }
         } else {
           rows.offer(rowData)
+          if (!paused && rows.size() >= bufferSize) {
+            paused = true
+            delegate.pause(this)
+          }
           on.set(false)
         }
+      }
+      if (stopped && needToCallCancel.compareAndSet(true, false)) {
+        delegate.cancel(this)
       }
     } else if (!stopped) {
       rows.offer(rowData)
@@ -114,8 +141,16 @@ class RowDataSubscription(val subscriber: Subscriber[RowData])(implicit executio
     }
   }
 
-  override final def run() {
+  override def run() {
     if (demand.get() > 0) {
+      if (!started) {
+        delegate.start(this)
+        started = true
+      }
+      if (paused) {
+        delegate.continue(this)
+        paused = false
+      }
       sendRows()
     }
     if (completed && !stopped && rows.isEmpty) {
@@ -124,9 +159,14 @@ class RowDataSubscription(val subscriber: Subscriber[RowData])(implicit executio
     }
     on.set(false)
     if (stopped) {
+      if (needToCallCancel.compareAndSet(true, false)) {
+        delegate.cancel(this)
+      }
       rows.clear()
-    } else if ((demand.get() > 0 && !rows.isEmpty) || (completed && rows.isEmpty)) {
-      tryScheduleToExecute()
+    } else {
+      if ((demand.get() > 0 && !rows.isEmpty) || (completed && rows.isEmpty)) {
+        tryScheduleToExecute()
+      }
     }
   }
 
