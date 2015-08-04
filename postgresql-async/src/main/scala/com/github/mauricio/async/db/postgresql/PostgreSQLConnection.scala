@@ -21,15 +21,16 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 
 import com.github.mauricio.async.db.column.{ColumnDecoderRegistry, ColumnEncoderRegistry}
 import com.github.mauricio.async.db.exceptions.{ConnectionStillRunningQueryException, InsufficientParametersException}
-import com.github.mauricio.async.db.general.MutableResultSet
+import com.github.mauricio.async.db.general.{ArrayRowData, MutableResultSet}
 import com.github.mauricio.async.db.postgresql.codec.{PostgreSQLConnectionDelegate, PostgreSQLConnectionHandler}
 import com.github.mauricio.async.db.postgresql.column.{PostgreSQLColumnDecoderRegistry, PostgreSQLColumnEncoderRegistry}
 import com.github.mauricio.async.db.postgresql.exceptions._
 import com.github.mauricio.async.db.postgresql.messages.backend._
 import com.github.mauricio.async.db.postgresql.messages.frontend._
 import com.github.mauricio.async.db.util._
-import com.github.mauricio.async.db.{Configuration, Connection, QueryResult}
+import com.github.mauricio.async.db.{RowData, Configuration, Connection, QueryResult}
 import io.netty.channel.EventLoopGroup
+import org.reactivestreams.{Subscriber, Publisher}
 
 import scala.concurrent._
 
@@ -60,42 +61,6 @@ class PostgreSQLConnection
     group,
     executionContext
   )
-
-  private sealed trait ResultProcessor {
-    var columnTypes: IndexedSeq[PostgreSQLColumnData]
-
-    def processRow(items: Array[Any]): Unit
-
-    def complete(): Unit
-
-    def failure(t: Throwable): Unit
-
-    def completeCommand(rowsAffected: Int, statusMessage: String): Unit
-  }
-  private class PromiseResultProcessor(val queryPromise : Promise[QueryResult]) extends ResultProcessor {
-    var currentQuery: Option[MutableResultSet[PostgreSQLColumnData]] = None
-    var queryResult: Option[QueryResult] = None
-
-    def columnTypes : IndexedSeq[PostgreSQLColumnData] = currentQuery.get.columnTypes
-    def columnTypes_= (columnData: IndexedSeq[PostgreSQLColumnData]) : Unit = {
-      currentQuery = Some(new MutableResultSet(columnData))
-    }
-    override def complete(): Unit = {
-      queryResult.foreach(queryPromise.success)
-    }
-
-    override def processRow(items: Array[Any]): Unit = {
-      currentQuery.get.addRow(items)
-    }
-
-    override def failure(t: Throwable): Unit = {
-      queryPromise.failure(t)
-    }
-
-    override def completeCommand(rowsAffected: Int, statusMessage: String): Unit = {
-      queryResult = Some(new QueryResult(rowsAffected, statusMessage, currentQuery))
-    }
-  }
 
   private final val currentCount = Counter.incrementAndGet()
   private final val preparedStatementsCounter = new AtomicInteger()
@@ -142,6 +107,16 @@ class PostgreSQLConnection
     promise.future
   }
 
+  def streamQuery(query: String, windowSize : Int = configuration.defaultWindowSize): Publisher[RowData] = {
+    validateQuery(query)
+
+    new Publisher[RowData] {
+      override def subscribe(s: Subscriber[_ >: RowData]): Unit = {
+        new RowDataSubscription(s, new SubscriptionDelegate(query), bufferSize = windowSize/2)
+      }
+    }
+  }
+
   override def sendPreparedStatement(query: String, values: Seq[Any] = List()): Future[QueryResult] = {
     validateQuery(query)
 
@@ -153,7 +128,7 @@ class PostgreSQLConnection
       new PreparedStatementHolder( query, preparedStatementsCounter.incrementAndGet ))
 
     if (holder.paramsCount != values.length) {
-      this.clearQueryPromise
+      this.clearResultProcessor
       throw new InsufficientParametersException(holder.paramsCount, values)
     }
 
@@ -195,7 +170,7 @@ class PostgreSQLConnection
     this.connectionFuture.trySuccess(this)
     
     this.recentError = false
-    this.clearQueryPromise.foreach {
+    this.clearResultProcessor.foreach {
       _.complete()
     }
   }
@@ -323,12 +298,12 @@ class PostgreSQLConnection
       notReadyForQueryError("Can't run query due to a race with another started query", race = true)
   }
 
-  private def clearQueryPromise : Option[ResultProcessor] = {
+  private def clearResultProcessor : Option[ResultProcessor] = {
     this.resultProcessorReference.getAndSet(None)
   }
 
   private def failQuery(t: Throwable) {
-    this.clearQueryPromise.foreach { processor =>
+    this.clearResultProcessor.foreach { processor =>
       processor.failure(t)
     }
   }
@@ -339,5 +314,91 @@ class PostgreSQLConnection
 
   override def toString: String = {
     s"${this.getClass.getSimpleName}{counter=${this.currentCount}}"
+  }
+
+  private sealed trait ResultProcessor {
+    var columnTypes: IndexedSeq[PostgreSQLColumnData]
+
+    def processRow(items: Array[Any]): Unit
+
+    def complete(): Unit
+
+    def failure(t: Throwable): Unit
+
+    def completeCommand(rowsAffected: Int, statusMessage: String): Unit
+  }
+
+  private class PromiseResultProcessor(val queryPromise : Promise[QueryResult]) extends ResultProcessor {
+    var currentQuery: Option[MutableResultSet[PostgreSQLColumnData]] = None
+    var queryResult: Option[QueryResult] = None
+
+    def columnTypes : IndexedSeq[PostgreSQLColumnData] = currentQuery.get.columnTypes
+    def columnTypes_= (columnData: IndexedSeq[PostgreSQLColumnData]) : Unit = {
+      currentQuery = Some(new MutableResultSet(columnData))
+    }
+    override def complete(): Unit = {
+      queryResult.foreach(queryPromise.success)
+    }
+
+    override def processRow(items: Array[Any]): Unit = {
+      currentQuery.get.addRow(items)
+    }
+
+    override def failure(t: Throwable): Unit = {
+      queryPromise.failure(t)
+    }
+
+    override def completeCommand(rowsAffected: Int, statusMessage: String): Unit = {
+      queryResult = Some(new QueryResult(rowsAffected, statusMessage, currentQuery))
+    }
+  }
+
+  private class StreamResultProcessor(val subscription: RowDataSubscription) extends ResultProcessor {
+    private var _columnTypes: IndexedSeq[PostgreSQLColumnData] = IndexedSeq()
+    private var columnMapping: Map[String, Int] = Map()
+    def columnTypes : IndexedSeq[PostgreSQLColumnData] = _columnTypes
+    def columnTypes_= (columnData: IndexedSeq[PostgreSQLColumnData]) : Unit = {
+      _columnTypes = columnData
+      columnMapping = this.columnTypes.indices.map{index =>
+          ( this.columnTypes(index).name, index )
+      }.toMap
+    }
+    var row = 0
+    override def processRow(items: Array[Any]): Unit = {
+      subscription.nextRow(new ArrayRowData(row, columnMapping, items))
+      row = row + 1
+    }
+
+    override def completeCommand(rowsAffected: Int, statusMessage: String): Unit = {
+      subscription.complete()
+    }
+
+    override def failure(t: Throwable): Unit = {
+      subscription.terminate(t)
+    }
+
+    override def complete(): Unit = {
+      subscription.complete()
+    }
+  }
+
+  private class SubscriptionDelegate(val query: String) extends RowDataSubscriptionDelegate {
+    override def start(subscription: RowDataSubscription): Unit = {
+      setResultProcessor(new StreamResultProcessor(subscription))
+      write(new QueryMessage(query))
+    }
+
+    override def cancel(subscription: RowDataSubscription): Unit = {
+      //TODO: Implement
+    }
+
+    //TODO: Implement back presure
+    override def pause(subscription: RowDataSubscription): Unit = {
+
+    }
+
+    override def continue(subscription: RowDataSubscription): Unit = {
+
+    }
   }
 }

@@ -43,6 +43,10 @@ object Configuration {
  *                           OOM or eternal loop attacks the client could have, defaults to 16 MB. You can set this
  *                           to any value you would like but again, make sure you know what you are doing if you do
  *                           change it.
+ * @param defaultWindowSize how many rows to retrieve in one windows. This count will be retrieved from database
+ *                          in one request. So in case of back pressure this amount of information will be preserved.
+ *                          It can be specified for a particular query.
+ *
  */
 
 case class Configuration(username: String,
@@ -54,4 +58,5 @@ case class Configuration(username: String,
                          maximumMessageSize: Int = 16777216,
                          allocator: AbstractByteBufAllocator = PooledByteBufAllocator.DEFAULT,
                          connectTimeout: Duration = 5.seconds,
-                         testTimeout: Duration = 5.seconds)
+                         testTimeout: Duration = 5.seconds,
+                         defaultWindowSize : Int = 1000)

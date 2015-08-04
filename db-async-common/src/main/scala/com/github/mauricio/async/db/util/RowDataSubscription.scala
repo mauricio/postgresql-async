@@ -53,7 +53,7 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
 
   override def request(n: Long) {
     if (n <= 0) {
-      terminateDueTo(new IllegalArgumentException(s"Requested number $n <= 0"))
+      terminate(new IllegalArgumentException(s"Requested number $n <= 0"))
     } else {
       demand.addAndGet(n)
       tryScheduleToExecute()
@@ -113,9 +113,12 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
     }
   }
 
-  private def terminateDueTo(exception: Throwable) {
+  private var exception : Option[Throwable] = None
+  def terminate(exception: Throwable) {
     stopped = true
-    subscriber.onError(exception)
+    this.exception = Some(exception)
+    needToCallCancel.set(true)
+    tryScheduleToExecute()
   }
 
   private def scheduleToExecute(): Unit = {
@@ -126,7 +129,7 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
         if (!stopped) {
           stopped = true
           try {
-            terminateDueTo(new IllegalStateException("Publisher terminated due to unavailable Executor.", t))
+            terminate(new IllegalStateException("Publisher terminated due to unavailable Executor.", t))
           } finally {
             rows.clear()
             on.set(false)
@@ -161,6 +164,7 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
     if (stopped) {
       if (needToCallCancel.compareAndSet(true, false)) {
         delegate.cancel(this)
+        exception.foreach(subscriber.onError)
       }
       rows.clear()
     } else {

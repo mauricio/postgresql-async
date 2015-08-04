@@ -16,12 +16,13 @@
 
 package com.github.mauricio.async.db.postgresql
 
+import java.util.concurrent.{TimeUnit, TimeoutException}
+
 import com.github.mauricio.async.db.util.Log
-import com.github.mauricio.async.db.{Connection, Configuration}
-import java.util.concurrent.{TimeoutException, TimeUnit}
-import scala.Some
+import com.github.mauricio.async.db.{Configuration, Connection}
+
 import scala.concurrent.duration._
-import scala.concurrent.{Future, Await}
+import scala.concurrent.{Await, Future}
 
 object DatabaseTestHelper {
   val log = Log.get[DatabaseTestHelper]
@@ -105,7 +106,7 @@ trait DatabaseTestHelper {
   }
 
   def await[T](future: Future[T]): T = {
-    Await.result(future, Duration(5, TimeUnit.SECONDS))
+    Await.result(future, Duration(10, TimeUnit.SECONDS))
   }
 
 

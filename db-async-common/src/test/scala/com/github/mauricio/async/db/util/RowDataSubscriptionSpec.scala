@@ -28,6 +28,7 @@ import scala.concurrent._
 import scala.concurrent.duration.Duration
 
 class RowDataSubscriptionSpec extends Specification {
+  //TODO: Test for terminate
   sequential
 
   "Positive flow" >> {
