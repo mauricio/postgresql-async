@@ -107,12 +107,12 @@ class PostgreSQLConnection
     promise.future
   }
 
-  def streamQuery(query: String, windowSize : Int = configuration.defaultWindowSize): Publisher[RowData] = {
+  def streamQuery(query: String, values: Seq[Any] = List(), fetchSize : Int = configuration.fetchSize): Publisher[RowData] = {
     validateQuery(query)
 
     new Publisher[RowData] {
       override def subscribe(s: Subscriber[_ >: RowData]): Unit = {
-        new RowDataSubscription(s, new SubscriptionDelegate(query), bufferSize = windowSize/2)
+        new RowDataSubscription(s, new SubscriptionDelegate(query), bufferSize = fetchSize/2)
       }
     }
   }
@@ -136,7 +136,7 @@ class PostgreSQLConnection
     processor.columnTypes = holder.columnDatas
     write(
       if (holder.prepared)
-        new PreparedStatementExecuteMessage(holder.statementId, holder.realQuery, values, this.encoderRegistry)
+        new PreparedStatementWholeExecuteMessage(holder.statementId, holder.realQuery, values, this.encoderRegistry)
       else {
         holder.prepared = true
         new PreparedStatementOpeningMessage(holder.statementId, holder.realQuery, values, this.encoderRegistry)
