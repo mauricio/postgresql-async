@@ -291,7 +291,7 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
           executeQuery(handler, "SELECT 0")
       }) must throwAn[UnsupportedAuthenticationMethodException]
 
-    }
+    }.pendingUntilFixed("Kerberos")
 
     "fail login using with an invalid credential exception" in {
 
@@ -312,7 +312,7 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
           e.errorMessage.fields(InformationMessage.Routine) === "auth_failed"
       }
 
-    }
+    }.pendingUntilFixed("Kerberos")
 
     "transaction and flatmap example" in {
 
