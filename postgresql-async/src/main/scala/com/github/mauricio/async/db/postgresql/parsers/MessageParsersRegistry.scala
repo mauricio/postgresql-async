@@ -47,6 +47,7 @@ class MessageParsersRegistry(charset: Charset) {
       case ServerMessage.ParseComplete => ReturningMessageParser.ParseCompleteMessageParser
       case ServerMessage.RowDescription => this.rowDescriptionParser
       case ServerMessage.ReadyForQuery => ReadyForQueryParser
+      case ServerMessage.PortalSuspended => PortalSuspendedParser
       case _ => throw new ParserNotAvailableException(t)
     }
   }

@@ -38,12 +38,14 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
   private val on = new AtomicBoolean(false)
   private val needToCallCancel = new AtomicBoolean(false)
   private var started = false
-  private var paused = false
+  private var _paused = false
   @volatile private var stopped = false
   private var completed = false
   private[util] val rows = new ConcurrentLinkedQueue[RowData]()
   private val demand = new AtomicLong(0)
   subscriber.onSubscribe(this)
+
+  def paused : Boolean = _paused
 
   override def cancel() {
     needToCallCancel.set(true)
@@ -79,8 +81,8 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
           }
         } else {
           rows.offer(rowData)
-          if (!paused && rows.size() >= bufferSize) {
-            paused = true
+          if (!_paused && rows.size() >= bufferSize) {
+            _paused = true
             delegate.pause(this)
           }
           on.set(false)
@@ -150,9 +152,9 @@ final class RowDataSubscription(val subscriber: Subscriber[_ >: RowData], val de
         delegate.start(this)
         started = true
       }
-      if (paused) {
+      if (_paused) {
         delegate.continue(this)
-        paused = false
+        _paused = false
       }
       sendRows()
     }

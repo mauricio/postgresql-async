@@ -59,4 +59,4 @@ case class Configuration(username: String,
                          allocator: AbstractByteBufAllocator = PooledByteBufAllocator.DEFAULT,
                          connectTimeout: Duration = 5.seconds,
                          testTimeout: Duration = 5.seconds,
-                         fetchSize : Int = 1000)
+                         fetchSize : Int = 100)

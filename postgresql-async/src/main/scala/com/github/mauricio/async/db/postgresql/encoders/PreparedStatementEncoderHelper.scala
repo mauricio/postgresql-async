@@ -40,30 +40,17 @@ trait PreparedStatementEncoderHelper {
                           writeDescribe: Boolean = false
                           ): ByteBuf = {
 
-    val bindBuffer: ByteBuf = bind(statementIdBytes, query, values, encoder, charset)
-
-    if (writeDescribe) {
-      val describeLength = 1 + 4 + 1 + statementIdBytes.length + 1
-      val describeBuffer = bindBuffer
-      describeBuffer.writeByte(ServerMessage.Describe)
-      describeBuffer.writeInt(describeLength - 1)
-      describeBuffer.writeByte('P')
-      describeBuffer.writeBytes(statementIdBytes)
-      describeBuffer.writeByte(0)
-    }
-
+    val bindBuffer: ByteBuf = bind(statementIdBytes, query, values, encoder, charset, writeDescribe)
     val executeBuffer: ByteBuf = execute(statementIdBytes, 0)
-
     val closeBuffer: ByteBuf = closePortal(statementIdBytes)
-
     val syncBuffer: ByteBuf = sync
 
     Unpooled.wrappedBuffer(bindBuffer, executeBuffer, syncBuffer, closeBuffer)
   }
 
-  def bind(statementIdBytes: Array[Byte], query: String, values: Seq[Any], encoder: ColumnEncoderRegistry, charset: Charset): ByteBuf = {
+  def bind(statementIdBytes: Array[Byte], query: String, values: Seq[Any], encoder: ColumnEncoderRegistry, charset: Charset, writeDescribe: Boolean): ByteBuf = {
     if (log.isDebugEnabled) {
-      log.debug(s"Preparing execute portal to statement ($query) - values (${values.mkString(", ")}) - ${charset}")
+      log.debug(s"Preparing execute portal to statement ($query) - values (${values.mkString(", ")}) - $charset")
     }
 
     val bindBuffer = Unpooled.buffer(1024)
@@ -118,6 +105,16 @@ trait PreparedStatementEncoderHelper {
     bindBuffer.writeShort(0)
 
     ByteBufferUtils.writeLength(bindBuffer)
+
+    if (writeDescribe) {
+      val describeLength = 1 + 4 + 1 + statementIdBytes.length + 1
+      val describeBuffer = bindBuffer
+      describeBuffer.writeByte(ServerMessage.Describe)
+      describeBuffer.writeInt(describeLength - 1)
+      describeBuffer.writeByte('P')
+      describeBuffer.writeBytes(statementIdBytes)
+      describeBuffer.writeByte(0)
+    }
     bindBuffer
   }
 
@@ -152,4 +149,29 @@ trait PreparedStatementEncoderHelper {
 
   def isNull(value: Any): Boolean = value == null || value == None
 
+  def parse(statementIdBytes: Array[Byte], query: String, valueTypes: Seq[Int], charset: Charset): ByteBuf = {
+    val columnCount = valueTypes.size
+
+    val parseBuffer = Unpooled.buffer(1024)
+    parseBuffer.writeByte(ServerMessage.Parse)
+    parseBuffer.writeInt(0)
+
+    parseBuffer.writeBytes(statementIdBytes)
+    parseBuffer.writeByte(0)
+    parseBuffer.writeBytes(query.getBytes(charset))
+    parseBuffer.writeByte(0)
+
+    parseBuffer.writeShort(columnCount)
+
+    if (log.isDebugEnabled) {
+      log.debug(s"Opening query ($query) - statement id (${statementIdBytes.mkString("-")}) - selected types (${valueTypes.mkString(", ")}))")
+    }
+
+    for (kind <- valueTypes) {
+      parseBuffer.writeInt(kind)
+    }
+
+    ByteBufferUtils.writeLength(parseBuffer)
+    parseBuffer
+  }
 }

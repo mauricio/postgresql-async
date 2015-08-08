@@ -33,6 +33,7 @@ import io.netty.channel.EventLoopGroup
 import org.reactivestreams.{Subscriber, Publisher}
 
 import scala.concurrent._
+import scala.util.Failure
 
 object PostgreSQLConnection {
   final val Counter = new AtomicLong()
@@ -77,6 +78,7 @@ class PostgreSQLConnection
   private var currentPreparedStatement: Option[PreparedStatementHolder] = None
   private var version = Version(0,0,0)
   private val notifyListeners = new CopyOnWriteArrayList[NotificationResponse => Unit]()
+  private var portalSuspended = false
 
   private def resultProcessor: Option[ResultProcessor] = resultProcessorReference.get()
 
@@ -97,6 +99,7 @@ class PostgreSQLConnection
   def parameterStatuses: scala.collection.immutable.Map[String, String] = this.parameterStatus.toMap
 
   override def sendQuery(query: String): Future[QueryResult] = {
+//    log.info(s"sendQuery $query")
     validateQuery(query)
 
     val promise = Promise[QueryResult]()
@@ -112,7 +115,7 @@ class PostgreSQLConnection
 
     new Publisher[RowData] {
       override def subscribe(s: Subscriber[_ >: RowData]): Unit = {
-        new RowDataSubscription(s, new SubscriptionDelegate(query), bufferSize = fetchSize/2)
+        new RowDataSubscription(s, new SubscriptionDelegate(query, values, fetchSize), bufferSize = fetchSize)
       }
     }
   }
@@ -153,6 +156,7 @@ class PostgreSQLConnection
 
   private def setErrorOnFutures(e: Throwable) {
     this.recentError = true
+    this.portalSuspended = false
 
     log.error("Error on connection", e)
 
@@ -167,11 +171,17 @@ class PostgreSQLConnection
   }
 
   override def onReadyForQuery() {
-    this.connectionFuture.trySuccess(this)
-    
-    this.recentError = false
-    this.clearResultProcessor.foreach {
-      _.complete()
+//    log.info("onReadyForQuery")
+    if (portalSuspended) {
+      portalSuspended = false
+      resultProcessor.get.portalSuspended()
+    } else {
+      this.connectionFuture.trySuccess(this)
+
+      this.recentError = false
+      this.clearResultProcessor.foreach {
+        _.complete()
+      }
     }
   }
 
@@ -185,8 +195,13 @@ class PostgreSQLConnection
   }
 
   override def onCommandComplete(m: CommandCompleteMessage) {
-    this.currentPreparedStatement = None
-    resultProcessor.get.completeCommand(m.rowsAffected, m.statusMessage)
+//    log.info(s"On comple ${m.statusMessage}")
+    if (resultProcessor.isDefined) {
+      resultProcessor.get.completeCommand(m.rowsAffected, m.statusMessage)
+      this.currentPreparedStatement = None
+    } else {
+      log.error("No process")
+    }
   }
 
   override def onParameterStatus(m: ParameterStatusMessage) {
@@ -312,6 +327,12 @@ class PostgreSQLConnection
     this.connectionHandler.write(message)
   }
 
+
+  override def onPortalSuspended(message: PortalSuspendedMessage) {
+//    log.info("suspended")
+    portalSuspended = true
+  }
+
   override def toString: String = {
     s"${this.getClass.getSimpleName}{counter=${this.currentCount}}"
   }
@@ -319,13 +340,15 @@ class PostgreSQLConnection
   private sealed trait ResultProcessor {
     var columnTypes: IndexedSeq[PostgreSQLColumnData]
 
-    def processRow(items: Array[Any]): Unit
+    def processRow(items: Array[Any])
 
-    def complete(): Unit
+    def complete()
 
-    def failure(t: Throwable): Unit
+    def portalSuspended()
 
-    def completeCommand(rowsAffected: Int, statusMessage: String): Unit
+    def failure(t: Throwable)
+
+    def completeCommand(rowsAffected: Int, statusMessage: String)
   }
 
   private class PromiseResultProcessor(val queryPromise : Promise[QueryResult]) extends ResultProcessor {
@@ -351,9 +374,13 @@ class PostgreSQLConnection
     override def completeCommand(rowsAffected: Int, statusMessage: String): Unit = {
       queryResult = Some(new QueryResult(rowsAffected, statusMessage, currentQuery))
     }
+
+    override def portalSuspended(): Unit = {}
   }
 
-  private class StreamResultProcessor(val subscription: RowDataSubscription) extends ResultProcessor {
+  private class StreamResultProcessor(val subscription: RowDataSubscription, val subscriptionDelegate: SubscriptionDelegate)
+    extends ResultProcessor
+  {
     private var _columnTypes: IndexedSeq[PostgreSQLColumnData] = IndexedSeq()
     private var columnMapping: Map[String, Int] = Map()
     def columnTypes : IndexedSeq[PostgreSQLColumnData] = _columnTypes
@@ -370,35 +397,85 @@ class PostgreSQLConnection
     }
 
     override def completeCommand(rowsAffected: Int, statusMessage: String): Unit = {
-      subscription.complete()
+
     }
 
     override def failure(t: Throwable): Unit = {
-      subscription.terminate(t)
+      sendQuery("ROLLBACK").onComplete{_ => subscription.terminate(t)}
     }
 
     override def complete(): Unit = {
-      subscription.complete()
+//      val holder = currentPreparedStatement.get
+//      write(new PreparedStatementCloseMessage(holder.statementId))
+      sendQuery("COMMIT").onComplete{
+        case Failure(tr) => subscription.terminate(tr)
+        case _ => subscription.complete()
+      }
+    }
+
+    override def portalSuspended(): Unit = {
+      if (subscriptionDelegate.cancelled) {
+        clearResultProcessor
+        sendQuery("COMMIT")
+      } else {
+        subscriptionDelegate.portalSuspended()
+      }
     }
   }
 
-  private class SubscriptionDelegate(val query: String) extends RowDataSubscriptionDelegate {
+  private class SubscriptionDelegate(val query: String, val values : Seq[Any], val fetchSize : Int) extends RowDataSubscriptionDelegate {
+    val holder = parsedStatements.getOrElseUpdate(query, new PreparedStatementHolder(query, preparedStatementsCounter.incrementAndGet))
+
     override def start(subscription: RowDataSubscription): Unit = {
-      setResultProcessor(new StreamResultProcessor(subscription))
-      write(new QueryMessage(query))
+      sendQuery("BEGIN").onComplete {
+        case Failure(tr) => subscription.terminate(tr)
+        case _ =>
+          if (holder.paramsCount != values.length) {
+            subscription.terminate(new InsufficientParametersException(holder.paramsCount, values))
+            return
+          }
+          val processor = new StreamResultProcessor(subscription, this)
+          setResultProcessor(processor)
+
+          currentPreparedStatement = Some(holder)
+          processor.columnTypes = holder.columnDatas
+          write(new PreparedStatementBindMessage(holder.statementId, holder.realQuery, values, encoderRegistry, parseQuery = !holder.prepared))
+          holder.prepared = true
+          write(new PreparedStatementExecuteMessage(holder.statementId, fetchSize))
+      }
     }
 
+    def writeExecute() = {
+      write(new PreparedStatementExecuteMessage(holder.statementId, fetchSize))
+    }
+
+    var cancelled = false
     override def cancel(subscription: RowDataSubscription): Unit = {
-      //TODO: Implement
+      //TODO: Implement termination by sending a command through new connection
+      cancelled = true
     }
 
-    //TODO: Implement back presure
-    override def pause(subscription: RowDataSubscription): Unit = {
+    private var suspended = false
+    def portalSuspended() {
+      if (paused) {
+        suspended = true
+      } else {
+        writeExecute()
+      }
+    }
 
+
+    @volatile private var paused = false
+    override def pause(subscription: RowDataSubscription): Unit = {
+      paused = true
     }
 
     override def continue(subscription: RowDataSubscription): Unit = {
-
+      paused = false
+      if (suspended) {
+        suspended = false
+        writeExecute()
+      }
     }
   }
 }

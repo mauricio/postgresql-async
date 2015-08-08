@@ -106,7 +106,7 @@ trait DatabaseTestHelper {
     } )
   }
 
-  def executeStream(handler: PostgreSQLConnection, statement: String, values: Array[Any] = Array.empty[Any], fetchSize : Int = 1000) : IndexedSeq[RowData] = {
+  def executeStream(handler: PostgreSQLConnection, statement: String, values: Array[Any] = Array.empty[Any], fetchSize : Int = 100) : IndexedSeq[RowData] = {
     handleTimeout(handler, {
       val subscriber: TestSubscriber = new TestSubscriber
       handler.streamQuery(statement, values, fetchSize).subscribe(subscriber)

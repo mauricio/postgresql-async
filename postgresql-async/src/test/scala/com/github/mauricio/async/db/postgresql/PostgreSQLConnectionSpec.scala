@@ -196,7 +196,7 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
 
     }
 
-    "stream a statement" in {
+    "stream a statement within one fetchSize" in {
       withHandler {
         handler =>
           executeDdl(handler, this.preparedStatementCreate)
@@ -214,7 +214,7 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
       }
     }
 
-    "stream a statement with a window size less than row count" in {
+    "stream a statement with a fetchSize less than row count" in {
       withHandler {
         handler =>
           executeDdl(handler, this.preparedStatementCreate)

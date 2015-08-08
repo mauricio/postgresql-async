@@ -124,7 +124,6 @@ class PostgreSQLConnectionHandler
   }
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: Object): Unit = {
-
     msg match {
 
       case m: ServerMessage => {
@@ -166,6 +165,8 @@ class PostgreSQLConnectionHandler
           case ServerMessage.ParameterStatus => {
             connectionDelegate.onParameterStatus(m.asInstanceOf[ParameterStatusMessage])
           }
+          case ServerMessage.PortalSuspended =>
+            connectionDelegate.onPortalSuspended(m.asInstanceOf[PortalSuspendedMessage])
           case ServerMessage.ParseComplete => {
           }
           case ServerMessage.ReadyForQuery => {
