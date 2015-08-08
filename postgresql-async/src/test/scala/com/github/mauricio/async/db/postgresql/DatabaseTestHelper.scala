@@ -107,7 +107,7 @@ trait DatabaseTestHelper {
   }
 
   def await[T](future: Future[T]): T = {
-    Await.result(future, Duration(10, TimeUnit.SECONDS))
+    Await.result(future, Duration(5, TimeUnit.SECONDS))
   }
 
   class TestSubscriber extends Subscriber[RowData] {
