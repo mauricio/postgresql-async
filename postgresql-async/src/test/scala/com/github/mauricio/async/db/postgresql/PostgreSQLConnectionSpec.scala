@@ -199,36 +199,20 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
     "stream a statement within one fetchSize" in {
       withHandler {
         handler =>
-          executeDdl(handler, this.preparedStatementCreate)
-          executeDdl(handler, this.preparedStatementInsert, 1)
-          executeDdl(handler, this.preparedStatementInsert2, 1)
-          val result = executeStream(handler, this.preparedStatementSelect)
-
-          result.size must_== 2
-          val row = result.head
-          row(0) === 1
-          row(1) === "John Doe"
-          val row2 = result(1)
-          row2(0) === 2
-          row2(1) === "Mary Jane"
+          val subscriber = new TestSubscriber()
+          val count: Int = 10
+          handler.streamQuery("select generate_series(0, ?)", Array(count), fetchSize = 100).subscribe(subscriber)
+          await(subscriber.promise.future).map(_(0).asInstanceOf[Int]) must_== (0 to count).toIndexedSeq
       }
     }
 
     "stream a statement with a fetchSize less than row count" in {
       withHandler {
         handler =>
-          executeDdl(handler, this.preparedStatementCreate)
-          executeDdl(handler, this.preparedStatementInsert, 1)
-          executeDdl(handler, this.preparedStatementInsert2, 1)
-          val result = executeStream(handler, this.preparedStatementSelect, fetchSize = 1)
-
-          result.size must_== 2
-          val row = result.head
-          row(0) === 1
-          row(1) === "John Doe"
-          val row2 = result(1)
-          row2(0) === 2
-          row2(1) === "Mary Jane"
+          val subscriber = new TestSubscriber()
+          val count: Int = 1000
+          handler.streamQuery("select generate_series(0, ?)", Array(count), fetchSize = 2).subscribe(subscriber)
+          await(subscriber.promise.future).map(_(0).asInstanceOf[Int]) must_== (0 to count).toIndexedSeq
       }
     }
 
