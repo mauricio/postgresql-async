@@ -18,7 +18,7 @@ package com.github.mauricio.async.db
 
 import java.nio.charset.Charset
 
-import io.netty.buffer.{AbstractByteBufAllocator, PooledByteBufAllocator}
+import io.netty.buffer.{ByteBufAllocator, PooledByteBufAllocator}
 import io.netty.util.CharsetUtil
 
 import scala.concurrent.duration._
@@ -43,6 +43,10 @@ object Configuration {
  *                           OOM or eternal loop attacks the client could have, defaults to 16 MB. You can set this
  *                           to any value you would like but again, make sure you know what you are doing if you do
  *                           change it.
+ * @param allocator the netty buffer allocator to be used
+ * @param connectTimeout the timeout for connecting to servers
+ * @param testTimeout the timeout for connection tests performed by pools
+ * @param queryTimeout the optional query timeout
  * @param streamFetchSize how many rows to retrieve in one windows. This count will be retrieved from database
  *                          in one request. So in case of back pressure this amount of information will be preserved.
  *                          It can be specified for a particular query.
@@ -56,7 +60,8 @@ case class Configuration(username: String,
                          database: Option[String] = None,
                          charset: Charset = Configuration.DefaultCharset,
                          maximumMessageSize: Int = 16777216,
-                         allocator: AbstractByteBufAllocator = PooledByteBufAllocator.DEFAULT,
+                         allocator: ByteBufAllocator = PooledByteBufAllocator.DEFAULT,
                          connectTimeout: Duration = 5.seconds,
                          testTimeout: Duration = 5.seconds,
+                         queryTimeout: Option[Duration] = None)
                          streamFetchSize : Int = 100)

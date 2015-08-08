@@ -16,12 +16,11 @@
 
 package com.github.mauricio.async.db.postgresql
 
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
-
-import com.github.mauricio.async.db.column.{ColumnDecoderRegistry, ColumnEncoderRegistry}
-import com.github.mauricio.async.db.exceptions.{ConnectionStillRunningQueryException, InsufficientParametersException}
-import com.github.mauricio.async.db.general.{ArrayRowData, MutableResultSet}
+import com.github.mauricio.async.db.QueryResult
+import com.github.mauricio.async.db.column.{ColumnEncoderRegistry, ColumnDecoderRegistry}
+import com.github.mauricio.async.db.exceptions.{InsufficientParametersException, ConnectionStillRunningQueryException}
+import com.github.mauricio.async.db.general.MutableResultSet
+import com.github.mauricio.async.db.pool.TimeoutScheduler
 import com.github.mauricio.async.db.postgresql.codec.{PostgreSQLConnectionDelegate, PostgreSQLConnectionHandler}
 import com.github.mauricio.async.db.postgresql.column.{PostgreSQLColumnDecoderRegistry, PostgreSQLColumnEncoderRegistry}
 import com.github.mauricio.async.db.postgresql.exceptions._
@@ -47,10 +46,11 @@ class PostgreSQLConnection
   encoderRegistry: ColumnEncoderRegistry = PostgreSQLColumnEncoderRegistry.Instance,
   decoderRegistry: ColumnDecoderRegistry = PostgreSQLColumnDecoderRegistry.Instance,
   group : EventLoopGroup = NettyUtils.DefaultEventLoopGroup,
-  executionContext : ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
+  implicit val executionContext : ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
   )
   extends PostgreSQLConnectionDelegate
-  with Connection {
+  with Connection
+  with  TimeoutScheduler {
 
   import PostgreSQLConnection._
 
@@ -65,7 +65,6 @@ class PostgreSQLConnection
 
   private final val currentCount = Counter.incrementAndGet()
   private final val preparedStatementsCounter = new AtomicInteger()
-  private final implicit val internalExecutionContext = executionContext
 
   private val parameterStatus = new scala.collection.mutable.HashMap[String, String]()
   private val parsedStatements = new scala.collection.mutable.HashMap[String, PreparedStatementHolder]()
@@ -78,6 +77,8 @@ class PostgreSQLConnection
   private val notifyListeners = new CopyOnWriteArrayList[NotificationResponse => Unit]()
   private var portalSuspended = false
 
+  override def eventLoopGroup : EventLoopGroup = group
+  
   private def resultProcessor: Option[ResultProcessor] = resultProcessorReference.get()
 
   def isReadyForQuery: Boolean = this.resultProcessor.isEmpty
@@ -93,6 +94,7 @@ class PostgreSQLConnection
   }
 
   override def disconnect: Future[Connection] = this.connectionHandler.disconnect.map( c => this )
+  override def onTimeout = disconnect
 
   override def isConnected: Boolean = this.connectionHandler.isConnected
 
@@ -105,7 +107,7 @@ class PostgreSQLConnection
     this.setResultProcessor(new PromiseResultProcessor(promise))
 
     write(new QueryMessage(query))
-
+    addTimeout(promise,configuration.queryTimeout)
     promise.future
   }
 
@@ -146,7 +148,7 @@ class PostgreSQLConnection
         holder.prepared = true
         new PreparedStatementOpeningMessage(holder.statementId, holder.realQuery, values, this.encoderRegistry)
       })
-
+    addTimeout(promise,configuration.queryTimeout)
     promise.future
   }
 
