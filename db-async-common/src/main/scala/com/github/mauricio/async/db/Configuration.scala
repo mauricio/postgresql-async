@@ -63,5 +63,5 @@ case class Configuration(username: String,
                          allocator: ByteBufAllocator = PooledByteBufAllocator.DEFAULT,
                          connectTimeout: Duration = 5.seconds,
                          testTimeout: Duration = 5.seconds,
-                         queryTimeout: Option[Duration] = None)
+                         queryTimeout: Option[Duration] = None,
                          streamFetchSize : Int = 100)

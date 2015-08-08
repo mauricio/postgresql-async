@@ -16,10 +16,12 @@
 
 package com.github.mauricio.async.db.postgresql
 
-import com.github.mauricio.async.db.QueryResult
-import com.github.mauricio.async.db.column.{ColumnEncoderRegistry, ColumnDecoderRegistry}
-import com.github.mauricio.async.db.exceptions.{InsufficientParametersException, ConnectionStillRunningQueryException}
-import com.github.mauricio.async.db.general.MutableResultSet
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.{AtomicReference, AtomicInteger, AtomicLong}
+
+import com.github.mauricio.async.db.column.{ColumnDecoderRegistry, ColumnEncoderRegistry}
+import com.github.mauricio.async.db.exceptions.{ConnectionStillRunningQueryException, InsufficientParametersException}
+import com.github.mauricio.async.db.general.{ArrayRowData, MutableResultSet}
 import com.github.mauricio.async.db.pool.TimeoutScheduler
 import com.github.mauricio.async.db.postgresql.codec.{PostgreSQLConnectionDelegate, PostgreSQLConnectionHandler}
 import com.github.mauricio.async.db.postgresql.column.{PostgreSQLColumnDecoderRegistry, PostgreSQLColumnEncoderRegistry}
@@ -27,9 +29,9 @@ import com.github.mauricio.async.db.postgresql.exceptions._
 import com.github.mauricio.async.db.postgresql.messages.backend._
 import com.github.mauricio.async.db.postgresql.messages.frontend._
 import com.github.mauricio.async.db.util._
-import com.github.mauricio.async.db.{RowData, Configuration, Connection, QueryResult}
+import com.github.mauricio.async.db.{Configuration, Connection, QueryResult, RowData}
 import io.netty.channel.EventLoopGroup
-import org.reactivestreams.{Subscriber, Publisher}
+import org.reactivestreams.{Publisher, Subscriber}
 
 import scala.concurrent._
 import scala.util.Failure
