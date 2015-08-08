@@ -109,12 +109,15 @@ class PostgreSQLConnection
     promise.future
   }
 
-  def streamQuery(query: String, values: Seq[Any] = List(), fetchSize : Int = configuration.fetchSize): Publisher[RowData] = {
+  def streamQuery(query: String, values: Seq[Any] = List(), fetchSize : Int = 0): Publisher[RowData] = {
     validateQuery(query)
-
+    val realFetchSize = if (fetchSize == 0) configuration.streamFetchSize else fetchSize
+    if (realFetchSize <= 0) {
+      throw new IllegalAccessException("Fetch size should more than 0")
+    }
     new Publisher[RowData] {
       override def subscribe(s: Subscriber[_ >: RowData]): Unit = {
-        new RowDataSubscription(s, new SubscriptionDelegate(query, values, fetchSize), bufferSize = fetchSize)
+        new RowDataSubscription(s, new SubscriptionDelegate(query, values, realFetchSize), bufferSize = realFetchSize)
       }
     }
   }

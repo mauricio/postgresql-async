@@ -85,6 +85,16 @@ class ConnectionPoolSpec extends Specification with DatabaseTestHelper {
 
     }
 
+    "stream data" in {
+      withPool {
+        pool =>
+          val subscriber = new TestSubscriber()
+          val count: Int = 10
+          pool.streamQuery("select generate_series(0, ?)", Array(count), fetchSize = 100).subscribe(subscriber)
+          await(subscriber.promise.future).map(_(0).asInstanceOf[Int]) must_== (0 to count).toIndexedSeq
+      }
+    }
+
   }
   val attemptsCount = 20
   val attempts = new Fixture[Int] {

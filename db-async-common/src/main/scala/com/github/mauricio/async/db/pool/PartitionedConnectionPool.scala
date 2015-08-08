@@ -1,16 +1,19 @@
-package com.github.mauricio.async.db.pool;
+package com.github.mauricio.async.db.pool
 
 import com.github.mauricio.async.db.util.ExecutorServiceUtils
-import com.github.mauricio.async.db.{ QueryResult, Connection }
-import scala.concurrent.{ ExecutionContext, Future }
+import com.github.mauricio.async.db.{Connection, QueryResult}
+
+import scala.concurrent.{ExecutionContext, Future}
 
 class PartitionedConnectionPool[T <: Connection](
     factory: ObjectFactory[T],
     configuration: PoolConfiguration,
     numberOfPartitions: Int,
-    executionContext: ExecutionContext = ExecutorServiceUtils.CachedExecutionContext)
+    val executionContext: ExecutionContext = ExecutorServiceUtils.CachedExecutionContext)
     extends PartitionedAsyncObjectPool[T](factory, configuration, numberOfPartitions)
-    with Connection {
+    with Connection
+    with ConnectionPoolStreamsImpl[T]
+{
 
     def disconnect: Future[Connection] = if (this.isConnected) {
         this.close.map(item => this)(executionContext)

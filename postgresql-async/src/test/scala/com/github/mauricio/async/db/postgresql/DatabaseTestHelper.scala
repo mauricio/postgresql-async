@@ -115,7 +115,7 @@ trait DatabaseTestHelper {
   }
 
   def await[T](future: Future[T]): T = {
-    Await.result(future, Duration(10, TimeUnit.SECONDS))
+    Await.result(future, Duration(1000, TimeUnit.SECONDS))
   }
 
   class TestSubscriber extends Subscriber[RowData] {
@@ -134,16 +134,16 @@ trait DatabaseTestHelper {
 
     override def onComplete(): Unit = {
       promise.success(rows)
-      requested -= 1
-      if (requested <= 2) {
-        subscription.get.request(8)
-        requested += 8
-      }
     }
 
     var rows = IndexedSeq[RowData]()
     override def onNext(t: RowData): Unit = {
       rows = rows :+ t
+      requested -= 1
+      if (requested <= 2) {
+        subscription.get.request(8)
+        requested += 8
+      }
     }
   }
 }
