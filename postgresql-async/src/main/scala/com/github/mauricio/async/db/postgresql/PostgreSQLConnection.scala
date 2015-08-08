@@ -71,9 +71,7 @@ class PostgreSQLConnection
   private val parsedStatements = new scala.collection.mutable.HashMap[String, PreparedStatementHolder]()
   private var authenticated = false
 
-  private val connectionFuture = Promise[Connection]()
-
-  private var recentError = false
+  private var recentError : Option[Throwable] = None
   private val resultProcessorReference = new AtomicReference[Option[ResultProcessor]](None)
   private var currentPreparedStatement: Option[PreparedStatementHolder] = None
   private var version = Version(0,0,0)
@@ -85,11 +83,13 @@ class PostgreSQLConnection
   def isReadyForQuery: Boolean = this.resultProcessor.isEmpty
 
   def connect: Future[Connection] = {
+    val processor = new ConnectResultProcessor()
+    setResultProcessor(processor)
     this.connectionHandler.connect.onFailure {
-      case e => this.connectionFuture.tryFailure(e)
+      case e => processor.failure(e)
     }
 
-    this.connectionFuture.future
+    processor.connectionPromise.future
   }
 
   override def disconnect: Future[Connection] = this.connectionHandler.disconnect.map( c => this )
@@ -99,7 +99,6 @@ class PostgreSQLConnection
   def parameterStatuses: scala.collection.immutable.Map[String, String] = this.parameterStatus.toMap
 
   override def sendQuery(query: String): Future[QueryResult] = {
-//    log.info(s"sendQuery $query")
     validateQuery(query)
 
     val promise = Promise[QueryResult]()
@@ -148,40 +147,28 @@ class PostgreSQLConnection
     promise.future
   }
 
-  override def onError( exception : Throwable ) {
-    this.setErrorOnFutures(exception)
+  override def onError(exception : Throwable) {
+    recentError = Some(exception)
   }
 
-  def hasRecentError: Boolean = this.recentError
+  def hasRecentError: Boolean = this.recentError.isDefined
 
   private def setErrorOnFutures(e: Throwable) {
-    this.recentError = true
     this.portalSuspended = false
-
-    log.error("Error on connection", e)
-
-    if (!this.connectionFuture.isCompleted) {
-      this.connectionFuture.failure(e)
-      this.disconnect
-    }
-
     this.currentPreparedStatement.map(p => this.parsedStatements.remove(p.query))
     this.currentPreparedStatement = None
     this.failQuery(e)
   }
 
   override def onReadyForQuery() {
-//    log.info("onReadyForQuery")
-    if (portalSuspended) {
+    if (recentError.isDefined) {
+      setErrorOnFutures(recentError.get)
+      this.recentError = None
+    } else if (portalSuspended) {
       portalSuspended = false
       resultProcessor.get.portalSuspended()
     } else {
-      this.connectionFuture.trySuccess(this)
-
-      this.recentError = false
-      this.clearResultProcessor.foreach {
-        _.complete()
-      }
+      this.clearResultProcessor.complete()
     }
   }
 
@@ -191,17 +178,12 @@ class PostgreSQLConnection
     val error = new GenericDatabaseException(m)
     error.fillInStackTrace()
 
-    this.setErrorOnFutures(error)
+    recentError = Some(error)
   }
 
   override def onCommandComplete(m: CommandCompleteMessage) {
-//    log.info(s"On comple ${m.statusMessage}")
-    if (resultProcessor.isDefined) {
-      resultProcessor.get.completeCommand(m.rowsAffected, m.statusMessage)
-      this.currentPreparedStatement = None
-    } else {
-      log.error("No process")
-    }
+    resultProcessor.get.completeCommand(m.rowsAffected, m.statusMessage)
+    this.currentPreparedStatement = None
   }
 
   override def onParameterStatus(m: ParameterStatusMessage) {
@@ -313,14 +295,12 @@ class PostgreSQLConnection
       notReadyForQueryError("Can't run query due to a race with another started query", race = true)
   }
 
-  private def clearResultProcessor : Option[ResultProcessor] = {
-    this.resultProcessorReference.getAndSet(None)
+  private def clearResultProcessor : ResultProcessor = {
+    this.resultProcessorReference.getAndSet(None).get
   }
 
   private def failQuery(t: Throwable) {
-    this.clearResultProcessor.foreach { processor =>
-      processor.failure(t)
-    }
+    this.clearResultProcessor.failure(t)
   }
 
   private def write( message : ClientMessage ) {
@@ -329,7 +309,6 @@ class PostgreSQLConnection
 
 
   override def onPortalSuspended(message: PortalSuspendedMessage) {
-//    log.info("suspended")
     portalSuspended = true
   }
 
@@ -349,6 +328,25 @@ class PostgreSQLConnection
     def failure(t: Throwable)
 
     def completeCommand(rowsAffected: Int, statusMessage: String)
+  }
+
+  private class ConnectResultProcessor extends ResultProcessor{
+    val connectionPromise = Promise[Connection]()
+    override var columnTypes: IndexedSeq[PostgreSQLColumnData] = _
+
+    override def processRow(items: Array[Any]): Unit = {}
+
+    override def completeCommand(rowsAffected: Int, statusMessage: String): Unit = {}
+
+    override def portalSuspended(): Unit = {}
+
+    override def failure(t: Throwable): Unit = {
+      connectionPromise.failure(t)
+    }
+
+    override def complete(): Unit = {
+      connectionPromise.success(PostgreSQLConnection.this)
+    }
   }
 
   private class PromiseResultProcessor(val queryPromise : Promise[QueryResult]) extends ResultProcessor {
