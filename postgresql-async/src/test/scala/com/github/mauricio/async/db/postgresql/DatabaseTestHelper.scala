@@ -16,12 +16,14 @@
 
 package com.github.mauricio.async.db.postgresql
 
+import java.util.concurrent.{TimeUnit, TimeoutException}
+
 import com.github.mauricio.async.db.util.Log
-import com.github.mauricio.async.db.{Connection, Configuration}
-import java.util.concurrent.{TimeoutException, TimeUnit}
-import scala.Some
+import com.github.mauricio.async.db.{RowData, Configuration, Connection}
+import org.reactivestreams.{Subscription, Subscriber}
+
 import scala.concurrent.duration._
-import scala.concurrent.{Future, Await}
+import scala.concurrent.{Promise, Await, Future}
 
 object DatabaseTestHelper {
   val log = Log.get[DatabaseTestHelper]
@@ -108,5 +110,32 @@ trait DatabaseTestHelper {
     Await.result(future, Duration(5, TimeUnit.SECONDS))
   }
 
+  class TestSubscriber extends Subscriber[RowData] {
+    val promise = Promise[IndexedSeq[RowData]]()
+    override def onError(t: Throwable): Unit = {
+      promise.failure(t)
+    }
+    
+    var subscription: Option[Subscription] = None
+    var requested : Long = 0
+    override def onSubscribe(subscription: Subscription): Unit = {
+      this.subscription = Some(subscription)
+      requested = 10
+      subscription.request(10)
+    }
 
+    override def onComplete(): Unit = {
+      promise.success(rows)
+    }
+
+    var rows = IndexedSeq[RowData]()
+    override def onNext(t: RowData): Unit = {
+      rows = rows :+ t
+      requested -= 1
+      if (requested <= 2) {
+        subscription.get.request(8)
+        requested += 8
+      }
+    }
+  }
 }

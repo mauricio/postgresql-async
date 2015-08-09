@@ -29,6 +29,7 @@ import com.github.mauricio.async.db.pool.TimeoutScheduler
 import com.github.mauricio.async.db.util.ChannelFutureTransformer.toFuture
 import com.github.mauricio.async.db.util._
 import io.netty.channel.{ChannelHandlerContext, EventLoopGroup}
+import org.reactivestreams.Publisher
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
@@ -265,4 +266,8 @@ class MySQLConnection(
     this.queryPromiseReference.getAndSet(None)
   }
 
+  override def streamQuery(query: String, values: Seq[Any] = List(), fetchSize: Int = 0): Publisher[RowData] = {
+    //TODO: Implement
+    throw new RuntimeException("Streams are not supported yet")
+  }
 }

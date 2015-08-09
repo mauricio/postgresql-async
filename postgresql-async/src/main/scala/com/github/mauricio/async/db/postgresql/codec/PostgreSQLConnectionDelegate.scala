@@ -19,7 +19,6 @@ package com.github.mauricio.async.db.postgresql.codec
 import com.github.mauricio.async.db.postgresql.messages.backend._
 
 trait PostgreSQLConnectionDelegate {
-
   def onAuthenticationResponse(message: AuthenticationMessage)
   def onCommandComplete( message : CommandCompleteMessage )
   def onDataRow( message : DataRowMessage )
@@ -29,5 +28,5 @@ trait PostgreSQLConnectionDelegate {
   def onReadyForQuery()
   def onRowDescription(message : RowDescriptionMessage)
   def onNotificationResponse(message : NotificationResponse )
-
+  def onPortalSuspended(message: PortalSuspendedMessage)
 }

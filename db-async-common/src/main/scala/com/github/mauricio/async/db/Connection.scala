@@ -16,6 +16,8 @@
 
 package com.github.mauricio.async.db
 
+import org.reactivestreams.Publisher
+
 import concurrent.Future
 
 /**
@@ -136,4 +138,15 @@ trait Connection {
       p.future
     }
   }
+
+  /**
+   * Stream query creating a publisher for [[http://reactive-streams.org reactive streams]].
+   * You can use one of implementations of reactive streams to work with this method, such as Akka Streams.
+   * @param query query string
+   * @param values parameters of query
+   * @param fetchSize size of chunk to retrieve from database. It is used to implement back pressure.
+   * @return A publisher
+   * @see [[com.github.mauricio.async.db.Connection.sendPreparedStatement]]
+   */
+  def streamQuery(query: String, values: Seq[Any] = List(), fetchSize : Int = 0): Publisher[RowData]
 }

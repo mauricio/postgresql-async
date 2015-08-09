@@ -16,16 +16,15 @@
 
 package com.github.mauricio.async.db.postgresql.codec
 
+import java.nio.charset.Charset
+
 import com.github.mauricio.async.db.column.ColumnEncoderRegistry
 import com.github.mauricio.async.db.exceptions.EncoderNotAvailableException
 import com.github.mauricio.async.db.postgresql.encoders._
-import com.github.mauricio.async.db.postgresql.messages.backend.ServerMessage
 import com.github.mauricio.async.db.postgresql.messages.frontend._
 import com.github.mauricio.async.db.util.{BufferDumper, Log}
-import java.nio.charset.Charset
-import scala.annotation.switch
-import io.netty.handler.codec.MessageToMessageEncoder
 import io.netty.channel.ChannelHandlerContext
+import io.netty.handler.codec.MessageToMessageEncoder
 
 object MessageEncoder {
   val log = Log.get[MessageEncoder]
@@ -35,31 +34,34 @@ class MessageEncoder(charset: Charset, encoderRegistry: ColumnEncoderRegistry) e
 
   import MessageEncoder.log
 
-  private val executeEncoder = new ExecutePreparedStatementEncoder(charset, encoderRegistry)
+  private val executeWholeEncoder = new PreparedStatementWholeExecuteEncoder(charset, encoderRegistry)
   private val openEncoder = new PreparedStatementOpeningEncoder(charset, encoderRegistry)
   private val startupEncoder = new StartupMessageEncoder(charset)
   private val queryEncoder = new QueryMessageEncoder(charset)
   private val credentialEncoder = new CredentialEncoder(charset)
+  private val closeEncoder = new PreparedStatementCloseEncoder(charset)
+  private val bindEncoder = new PreparedStatementBindEncoder(charset, encoderRegistry)
+  private val executeEncoder = new PreparedStatementExecuteEncoder(charset)
 
   override def encode(ctx: ChannelHandlerContext, msg: AnyRef, out: java.util.List[Object]) = {
 
     val buffer = msg match {
-      case message: ClientMessage => {
-        val encoder = (message.kind: @switch) match {
-          case ServerMessage.Close => CloseMessageEncoder
-          case ServerMessage.Execute => this.executeEncoder
-          case ServerMessage.Parse => this.openEncoder
-          case ServerMessage.Startup => this.startupEncoder
-          case ServerMessage.Query => this.queryEncoder
-          case ServerMessage.PasswordMessage => this.credentialEncoder
+      case message: ClientMessage =>
+        val encoder = message match {
+          case CloseMessage => CloseMessageEncoder
+          case _ : PreparedStatementWholeExecuteMessage => this.executeWholeEncoder
+          case _ : PreparedStatementOpeningMessage => this.openEncoder
+          case _ : StartupMessage => this.startupEncoder
+          case _ : QueryMessage => this.queryEncoder
+          case _ : CredentialMessage => this.credentialEncoder
+          case _ : PreparedStatementCloseMessage => this.closeEncoder
+          case _ : PreparedStatementBindMessage => this.bindEncoder
+          case _ : PreparedStatementExecuteMessage => this.executeEncoder
           case _ => throw new EncoderNotAvailableException(message)
         }
-
         encoder.encode(message)
-      }
-      case _ => {
+      case _ =>
         throw new IllegalArgumentException("Can not encode message %s".format(msg))
-      }
     }
 
     if (log.isTraceEnabled) {

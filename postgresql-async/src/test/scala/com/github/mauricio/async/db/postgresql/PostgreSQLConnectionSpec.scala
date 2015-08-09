@@ -14,23 +14,22 @@
  * under the License.
  */
 
-package com.github.mauricio.postgresql
+package com.github.mauricio.async.db.postgresql
 
 import java.nio.ByteBuffer
 
-import com.github.mauricio.async.db.column.{TimestampEncoderDecoder, TimeEncoderDecoder, DateEncoderDecoder}
+import com.github.mauricio.async.db.column.{DateEncoderDecoder, TimeEncoderDecoder, TimestampEncoderDecoder}
 import com.github.mauricio.async.db.exceptions.UnsupportedAuthenticationMethodException
-import com.github.mauricio.async.db.postgresql.exceptions.{QueryMustNotBeNullOrEmptyException, GenericDatabaseException}
+import com.github.mauricio.async.db.postgresql.exceptions.{GenericDatabaseException, QueryMustNotBeNullOrEmptyException}
 import com.github.mauricio.async.db.postgresql.messages.backend.InformationMessage
-import com.github.mauricio.async.db.postgresql.{PostgreSQLConnection, DatabaseTestHelper}
 import com.github.mauricio.async.db.util.Log
-import com.github.mauricio.async.db.{Configuration, QueryResult, Connection}
+import com.github.mauricio.async.db.{Configuration, Connection, QueryResult}
 import io.netty.buffer.Unpooled
-import concurrent.{Future, Await}
-import org.specs2.mutable.Specification
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
 import org.joda.time.LocalDateTime
+import org.specs2.mutable.Specification
+
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
 object PostgreSQLConnectionSpec {
   val log = Log.get[PostgreSQLConnectionSpec]
@@ -197,6 +196,26 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
 
     }
 
+    "stream a statement within one fetchSize" in {
+      withHandler {
+        handler =>
+          val subscriber = new TestSubscriber()
+          val count: Int = 10
+          handler.streamQuery("select generate_series(0, ?)", Array(count), fetchSize = 100).subscribe(subscriber)
+          await(subscriber.promise.future).map(_(0).asInstanceOf[Int]) must_== (0 to count).toIndexedSeq
+      }
+    }
+
+    "stream a statement with a fetchSize less than row count" in {
+      withHandler {
+        handler =>
+          val subscriber = new TestSubscriber()
+          val count: Int = 1000
+          handler.streamQuery("select generate_series(0, ?)", Array(count), fetchSize = 2).subscribe(subscriber)
+          await(subscriber.promise.future).map(_(0).asInstanceOf[Int]) must_== (0 to count).toIndexedSeq
+      }
+    }
+
     "execute a prepared statement with parameters" in {
 
       withHandler {
@@ -272,7 +291,7 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
           executeQuery(handler, "SELECT 0")
       }) must throwAn[UnsupportedAuthenticationMethodException]
 
-    }
+    }.pendingUntilFixed("Kerberos")
 
     "fail login using with an invalid credential exception" in {
 
@@ -293,7 +312,7 @@ class PostgreSQLConnectionSpec extends Specification with DatabaseTestHelper {
           e.errorMessage.fields(InformationMessage.Routine) === "auth_failed"
       }
 
-    }
+    }.pendingUntilFixed("Kerberos")
 
     "transaction and flatmap example" in {
 

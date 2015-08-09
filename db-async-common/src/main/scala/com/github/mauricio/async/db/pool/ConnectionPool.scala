@@ -17,7 +17,8 @@
 package com.github.mauricio.async.db.pool
 
 import com.github.mauricio.async.db.util.ExecutorServiceUtils
-import com.github.mauricio.async.db.{QueryResult, Connection}
+import com.github.mauricio.async.db.{Connection, QueryResult}
+
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -39,10 +40,12 @@ import scala.concurrent.{ExecutionContext, Future}
 class ConnectionPool[T <: Connection](
                       factory: ObjectFactory[T],
                       configuration: PoolConfiguration,
-                      executionContext: ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
+                      val executionContext: ExecutionContext = ExecutorServiceUtils.CachedExecutionContext
                       )
   extends SingleThreadedAsyncObjectPool[T](factory, configuration)
-  with Connection {
+  with Connection
+  with ConnectionPoolStreamsImpl[T]
+{
 
   /**
    *
@@ -107,5 +110,4 @@ class ConnectionPool[T <: Connection](
 
   override def inTransaction[A](f : Connection => Future[A])(implicit context : ExecutionContext = executionContext) : Future[A] =
     this.use(_.inTransaction[A](f)(context))(executionContext)
-
 }

@@ -16,12 +16,12 @@
 
 package com.github.mauricio.async.db.postgresql.encoders
 
-import com.github.mauricio.async.db.column.ColumnEncoderRegistry
-import com.github.mauricio.async.db.postgresql.messages.backend.ServerMessage
-import com.github.mauricio.async.db.postgresql.messages.frontend.{ClientMessage, PreparedStatementOpeningMessage}
-import com.github.mauricio.async.db.util.{Log, ByteBufferUtils}
 import java.nio.charset.Charset
-import io.netty.buffer.{Unpooled, ByteBuf}
+
+import com.github.mauricio.async.db.column.ColumnEncoderRegistry
+import com.github.mauricio.async.db.postgresql.messages.frontend.{ClientMessage, PreparedStatementOpeningMessage}
+import com.github.mauricio.async.db.util.Log
+import io.netty.buffer.{ByteBuf, Unpooled}
 
 object PreparedStatementOpeningEncoder {
   val log = Log.get[PreparedStatementOpeningEncoder]
@@ -32,40 +32,14 @@ class PreparedStatementOpeningEncoder(charset: Charset, encoder : ColumnEncoderR
   with PreparedStatementEncoderHelper
 {
 
-  import PreparedStatementOpeningEncoder.log
-
   override def encode(message: ClientMessage): ByteBuf = {
 
     val m = message.asInstanceOf[PreparedStatementOpeningMessage]
 
     val statementIdBytes = m.statementId.toString.getBytes(charset)
-    val columnCount = m.valueTypes.size
-
-    val parseBuffer = Unpooled.buffer(1024)
-
-    parseBuffer.writeByte(ServerMessage.Parse)
-    parseBuffer.writeInt(0)
-
-    parseBuffer.writeBytes(statementIdBytes)
-    parseBuffer.writeByte(0)
-    parseBuffer.writeBytes(m.query.getBytes(charset))
-    parseBuffer.writeByte(0)
-
-    parseBuffer.writeShort(columnCount)
-
-    if ( log.isDebugEnabled ) {
-      log.debug(s"Opening query (${m.query}) - statement id (${statementIdBytes.mkString("-")}) - selected types (${m.valueTypes.mkString(", ")}) - values (${m.values.mkString(", ")})")
-    }
-
-    for (kind <- m.valueTypes) {
-      parseBuffer.writeInt(kind)
-    }
-
-    ByteBufferUtils.writeLength(parseBuffer)
-
-    val executeBuffer = writeExecutePortal(statementIdBytes, m.query, m.values, encoder, charset, true)
+    val parseBuffer: ByteBuf = parse(statementIdBytes, m.query, m.valueTypes, charset)
+    val executeBuffer = writeExecutePortal(statementIdBytes, m.query, m.values, encoder, charset, writeDescribe = true)
 
     Unpooled.wrappedBuffer(parseBuffer, executeBuffer)
   }
-
 }

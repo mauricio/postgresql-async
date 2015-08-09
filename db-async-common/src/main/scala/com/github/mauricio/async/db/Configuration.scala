@@ -47,6 +47,9 @@ object Configuration {
  * @param connectTimeout the timeout for connecting to servers
  * @param testTimeout the timeout for connection tests performed by pools
  * @param queryTimeout the optional query timeout
+ * @param streamFetchSize how many rows to retrieve in one windows. This count will be retrieved from database
+ *                          in one request. So in case of back pressure this amount of information will be preserved.
+ *                          It can be specified for a particular query.
  *
  */
 
@@ -60,4 +63,5 @@ case class Configuration(username: String,
                          allocator: ByteBufAllocator = PooledByteBufAllocator.DEFAULT,
                          connectTimeout: Duration = 5.seconds,
                          testTimeout: Duration = 5.seconds,
-                         queryTimeout: Option[Duration] = None)
+                         queryTimeout: Option[Duration] = None,
+                         streamFetchSize : Int = 100)
