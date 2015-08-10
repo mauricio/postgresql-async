@@ -21,7 +21,9 @@ import java.util.UUID
 import com.github.mauricio.async.db.pool.{ConnectionPool, PoolConfiguration}
 import com.github.mauricio.async.db.postgresql.exceptions.GenericDatabaseException
 import com.github.mauricio.async.db.postgresql.{PostgreSQLConnection, DatabaseTestHelper}
+import org.specs2.execute.{Result, Success, AsResult}
 import org.specs2.mutable.Specification
+import org.specs2.specification.Fixture
 
 object ConnectionPoolSpec {
   val Insert = "insert into transaction_test (id) values (?)"
@@ -60,7 +62,7 @@ class ConnectionPoolSpec extends Specification with DatabaseTestHelper {
       }
     }
 
-    "runs commands for a transaction in a single connection" in {
+    "runs commands for a transaction in a single connection" ! attempts {_ =>
 
       val id = UUID.randomUUID().toString
 
@@ -85,6 +87,14 @@ class ConnectionPoolSpec extends Specification with DatabaseTestHelper {
 
   }
 
+  val attemptsCount = 20
+  val attempts = new Fixture[Int] {
+    def apply[R : AsResult](f: Int => R) = {
+      (0 to attemptsCount).foldLeft(Success(): Result) { (res, i) =>
+        res and AsResult(f(i))
+      }
+    }
+  }
   def withPool[R]( fn : (ConnectionPool[PostgreSQLConnection]) => R ) : R = {
 
     val pool = new ConnectionPool( new PostgreSQLConnectionFactory(defaultConfiguration), PoolConfiguration.Default )
