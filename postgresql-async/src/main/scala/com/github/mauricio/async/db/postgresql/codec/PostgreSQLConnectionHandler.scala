@@ -38,6 +38,13 @@ import com.github.mauricio.async.db.postgresql.messages.backend.RowDescriptionMe
 import com.github.mauricio.async.db.postgresql.messages.backend.ParameterStatusMessage
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.handler.codec.CodecException
+import io.netty.handler.ssl.{SslContextBuilder, SslHandler}
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory
+import io.netty.util.concurrent.FutureListener
+import java.io.File
+import javax.net.ssl.{SSLParameters, TrustManagerFactory}
+import java.security.KeyStore
+import java.io.FileInputStream
 
 object PostgreSQLConnectionHandler {
   final val log = Log.get[PostgreSQLConnectionHandler]
@@ -79,7 +86,7 @@ class PostgreSQLConnectionHandler
 
       override def initChannel(ch: channel.Channel): Unit = {
         ch.pipeline.addLast(
-          new MessageDecoder(configuration.charset, configuration.maximumMessageSize),
+          new MessageDecoder(configuration.ssl.enabled, configuration.charset, configuration.maximumMessageSize),
           new MessageEncoder(configuration.charset, encoderRegistry),
           PostgreSQLConnectionHandler.this)
       }
@@ -120,12 +127,60 @@ class PostgreSQLConnectionHandler
   }
 
   override def channelActive(ctx: ChannelHandlerContext): Unit = {
-    ctx.writeAndFlush(new StartupMessage(this.properties))
+    if (configuration.ssl.enabled)
+      ctx.writeAndFlush(SSLRequestMessage)
+    else
+      ctx.writeAndFlush(new StartupMessage(this.properties))
   }
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: Object): Unit = {
 
     msg match {
+
+      case SSLResponseMessage(supported) =>
+        if (supported) {
+          val ctxBuilder = SslContextBuilder.forClient()
+          if (configuration.ssl.verifyRoot) {
+            configuration.ssl.rootFile.fold {
+              val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+              val ks = KeyStore.getInstance(KeyStore.getDefaultType())
+              val cacerts = new FileInputStream(System.getProperty("java.home") + "/lib/security/cacerts")
+              try {
+                ks.load(cacerts, "changeit".toCharArray)
+              } finally {
+                cacerts.close()
+              }
+              tmf.init(ks)
+              ctxBuilder.trustManager(tmf)
+            } { path =>
+              ctxBuilder.trustManager(new File(path))
+            }
+          } else {
+            ctxBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE)
+          }
+          val sslContext = ctxBuilder.build()
+          val sslEngine = sslContext.newEngine(ctx.alloc(), configuration.host, configuration.port)
+          if (configuration.ssl.verifyHostname) {
+            val sslParams = sslEngine.getSSLParameters()
+            sslParams.setEndpointIdentificationAlgorithm("HTTPS")
+            sslEngine.setSSLParameters(sslParams)
+          }
+          val handler = new SslHandler(sslEngine)
+          ctx.pipeline().addFirst(handler)
+          handler.handshakeFuture.addListener(new FutureListener[channel.Channel]() {
+            def operationComplete(future: io.netty.util.concurrent.Future[channel.Channel]) {
+              if (future.isSuccess()) {
+                ctx.writeAndFlush(new StartupMessage(properties))
+              } else {
+                connectionDelegate.onError(future.cause())
+              }
+            }
+          })
+        } else if (configuration.ssl.optional) {
+          ctx.writeAndFlush(new StartupMessage(properties))
+        } else {
+          connectionDelegate.onError(new IllegalArgumentException("SSL is not supported on server"))
+        }
 
       case m: ServerMessage => {
 
