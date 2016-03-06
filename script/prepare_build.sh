@@ -28,7 +28,7 @@ sudo chmod 666 $PGDATA/pg_hba.conf
 echo "pg_hba.conf goes as follows"
 cat "$PGDATA/pg_hba.conf"
 
-sudo echo "local    all             all                                     trust"    >  $PGDATA/pg_hba.conf
+sudo echo "local    all             $PGUSER                                 trust"    >  $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres           127.0.0.1/32         trust"    >> $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres_md5       127.0.0.1/32         md5"      >> $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres_cleartext 127.0.0.1/32         password" >> $PGDATA/pg_hba.conf
