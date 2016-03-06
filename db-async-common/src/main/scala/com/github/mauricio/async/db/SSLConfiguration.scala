@@ -1,27 +1,31 @@
 package com.github.mauricio.async.db
 
+import java.io.File
+
+import SSLConfiguration.Mode
+
 /**
  *
  * Contains the SSL configuration necessary to connect to a database.
  *
- * @param enabled enable ssl, defaults to false
- * @param optional fallback to plaintext connection if server doesn't support ssl, defaults to false
- * @param rootFile path to PEM encoded trusted root certificates, None to use internal JDK cacerts, defaults to None
- * @param verifyRoot verify root certificate validity, defaults to true
- * @param verifyHostname verify peer certificate hostname, defaults to true
+ * @param mode whether and with what priority a SSL connection will be negotiated, default disabled
+ * @param rootCert path to PEM encoded trusted root certificates, None to use internal JDK cacerts, defaults to None
  *
  */
-case class SSLConfiguration(enabled: Boolean = false,
-                            optional: Boolean = false,
-                            rootFile: Option[String] = None,
-                            verifyRoot: Boolean = true,
-                            verifyHostname: Boolean = true)
+case class SSLConfiguration(mode: Mode.Value = Mode.Disable, rootCert: Option[java.io.File] = None)
 
 object SSLConfiguration {
+
+  object Mode extends Enumeration {
+    val Disable    = Value("disable")      // only try a non-SSL connection
+    val Prefer     = Value("prefer")       // first try an SSL connection; if that fails, try a non-SSL connection
+    val Require    = Value("require")      // only try an SSL connection, but don't verify Certificate Authority
+    val VerifyCA   = Value("verify-ca")    // only try an SSL connection, and verify that the server certificate is issued by a trusted certificate authority (CA)
+    val VerifyFull = Value("verify-full")  // only try an SSL connection, verify that the server certificate is issued by a trusted CA and that the server host name matches that in the certificate
+  }
+
   def apply(properties: Map[String, String]): SSLConfiguration = SSLConfiguration(
-      enabled = properties.get("ssl").map(_.toBoolean).getOrElse(false),
-      optional = properties.get("sslOptional").map(_.toBoolean).getOrElse(false),
-      rootFile = properties.get("sslRootFile"),
-      verifyRoot = properties.get("sslVerifyRoot").map(_.toBoolean).getOrElse(true),
-      verifyHostname = properties.get("sslVerifyHostname").map(_.toBoolean).getOrElse(true))
+    mode = Mode.withName(properties.get("sslmode").getOrElse("disable")),
+    rootCert = properties.get("sslrootcert").map(new File(_))
+  )
 }

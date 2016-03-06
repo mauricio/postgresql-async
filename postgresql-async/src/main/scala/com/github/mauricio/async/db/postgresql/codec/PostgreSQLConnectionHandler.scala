@@ -17,6 +17,7 @@
 package com.github.mauricio.async.db.postgresql.codec
 
 import com.github.mauricio.async.db.Configuration
+import com.github.mauricio.async.db.SSLConfiguration.Mode
 import com.github.mauricio.async.db.column.{ColumnDecoderRegistry, ColumnEncoderRegistry}
 import com.github.mauricio.async.db.postgresql.exceptions._
 import com.github.mauricio.async.db.postgresql.messages.backend._
@@ -41,7 +42,6 @@ import io.netty.handler.codec.CodecException
 import io.netty.handler.ssl.{SslContextBuilder, SslHandler}
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.util.concurrent.FutureListener
-import java.io.File
 import javax.net.ssl.{SSLParameters, TrustManagerFactory}
 import java.security.KeyStore
 import java.io.FileInputStream
@@ -86,7 +86,7 @@ class PostgreSQLConnectionHandler
 
       override def initChannel(ch: channel.Channel): Unit = {
         ch.pipeline.addLast(
-          new MessageDecoder(configuration.ssl.enabled, configuration.charset, configuration.maximumMessageSize),
+          new MessageDecoder(configuration.ssl.mode != Mode.Disable, configuration.charset, configuration.maximumMessageSize),
           new MessageEncoder(configuration.charset, encoderRegistry),
           PostgreSQLConnectionHandler.this)
       }
@@ -127,10 +127,10 @@ class PostgreSQLConnectionHandler
   }
 
   override def channelActive(ctx: ChannelHandlerContext): Unit = {
-    if (configuration.ssl.enabled)
-      ctx.writeAndFlush(SSLRequestMessage)
-    else
+    if (configuration.ssl.mode == Mode.Disable)
       ctx.writeAndFlush(new StartupMessage(this.properties))
+    else
+      ctx.writeAndFlush(SSLRequestMessage)
   }
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: Object): Unit = {
@@ -140,8 +140,8 @@ class PostgreSQLConnectionHandler
       case SSLResponseMessage(supported) =>
         if (supported) {
           val ctxBuilder = SslContextBuilder.forClient()
-          if (configuration.ssl.verifyRoot) {
-            configuration.ssl.rootFile.fold {
+          if (configuration.ssl.mode >= Mode.VerifyCA) {
+            configuration.ssl.rootCert.fold {
               val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
               val ks = KeyStore.getInstance(KeyStore.getDefaultType())
               val cacerts = new FileInputStream(System.getProperty("java.home") + "/lib/security/cacerts")
@@ -153,14 +153,14 @@ class PostgreSQLConnectionHandler
               tmf.init(ks)
               ctxBuilder.trustManager(tmf)
             } { path =>
-              ctxBuilder.trustManager(new File(path))
+              ctxBuilder.trustManager(path)
             }
           } else {
             ctxBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE)
           }
           val sslContext = ctxBuilder.build()
           val sslEngine = sslContext.newEngine(ctx.alloc(), configuration.host, configuration.port)
-          if (configuration.ssl.verifyHostname) {
+          if (configuration.ssl.mode >= Mode.VerifyFull) {
             val sslParams = sslEngine.getSSLParameters()
             sslParams.setEndpointIdentificationAlgorithm("HTTPS")
             sslEngine.setSSLParameters(sslParams)
@@ -176,7 +176,7 @@ class PostgreSQLConnectionHandler
               }
             }
           })
-        } else if (configuration.ssl.optional) {
+        } else if (configuration.ssl.mode < Mode.Require) {
           ctx.writeAndFlush(new StartupMessage(properties))
         } else {
           connectionDelegate.onError(new IllegalArgumentException("SSL is not supported on server"))
