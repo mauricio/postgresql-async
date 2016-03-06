@@ -61,7 +61,7 @@ trait DatabaseTestHelper {
     host = host,
     port = databasePort,
     username = "postgres",
-    database = timeTestDatabase,
+    database = databaseName,
     ssl = SSLConfiguration(mode = mode, rootCert = rootCert))
     withHandler(config, fn)
   }
