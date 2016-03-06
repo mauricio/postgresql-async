@@ -26,7 +26,7 @@ psql -d "netty_driver_test" -c "CREATE TYPE example_mood AS ENUM ('sad', 'ok', '
 sudo chmod 666 $PGDATA/pg_hba.conf
 
 echo "pg_hba.conf goes as follows"
-#cat "$PGDATA/pg_hba.conf"
+cat "$PGDATA/pg_hba.conf"
 
 sudo echo "local    all             all                                     trust"    >  $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres           127.0.0.1/32         trust"    >> $PGDATA/pg_hba.conf
@@ -42,7 +42,7 @@ sudo chmod 600 $PGDATA/pg_hba.conf
 sudo chmod 666 $PGDATA/postgresql.conf
 
 echo "postgresql.conf goes as follows"
-#cat "$PGDATA/postgresql.conf"
+cat "$PGDATA/postgresql.conf"
 
 sudo echo "ssl = on" > $PGDATA/postgresql.conf
 
