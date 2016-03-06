@@ -10,26 +10,50 @@ mysql -u root -e "GRANT ALL PRIVILEGES ON *.* TO 'mysql_async_nopw'@'localhost' 
 
 echo "preparing postgresql configs"
 
-psql -c 'create database netty_driver_test;' -U postgres
-psql -c 'create database netty_driver_time_test;' -U postgres
-psql -c "alter database netty_driver_time_test set timezone to 'GMT'" -U postgres
-psql -c "create table transaction_test ( id varchar(255) not null, constraint id_unique primary key (id))" -U postgres netty_driver_test
-psql -c "CREATE USER postgres_md5 WITH PASSWORD 'postgres_md5'; GRANT ALL PRIVILEGES ON DATABASE netty_driver_test to postgres_md5;" -U postgres
-psql -c "CREATE USER postgres_cleartext WITH PASSWORD 'postgres_cleartext'; GRANT ALL PRIVILEGES ON DATABASE netty_driver_test to postgres_cleartext;" -U postgres
-psql -c "CREATE USER postgres_kerberos WITH PASSWORD 'postgres_kerberos'; GRANT ALL PRIVILEGES ON DATABASE netty_driver_test to postgres_kerberos;" -U postgres
-psql -d "netty_driver_test" -c "CREATE TYPE example_mood AS ENUM ('sad', 'ok', 'happy');" -U postgres
+PGDATA=/etc/postgresql/9.1/main
+PGUSER=postgres
+SCRIPTSDIR=`dirname $0`
 
-sudo chmod 777 /etc/postgresql/9.1/main/pg_hba.conf
+psql -d "postgres" -c 'create database netty_driver_test;' -U $PGUSER
+psql -d "postgres" -c 'create database netty_driver_time_test;' -U $PGUSER
+psql -d "postgres" -c "alter database netty_driver_time_test set timezone to 'GMT'" -U $PGUSER
+psql -d "netty_driver_test" -c "create table transaction_test ( id varchar(255) not null, constraint id_unique primary key (id))" -U $PGUSER
+psql -d "postgres" -c "CREATE USER postgres_md5 WITH PASSWORD 'postgres_md5'; GRANT ALL PRIVILEGES ON DATABASE netty_driver_test to postgres_md5;" -U $PGUSER
+psql -d "postgres" -c "CREATE USER postgres_cleartext WITH PASSWORD 'postgres_cleartext'; GRANT ALL PRIVILEGES ON DATABASE netty_driver_test to postgres_cleartext;" -U $PGUSER
+psql -d "postgres" -c "CREATE USER postgres_kerberos WITH PASSWORD 'postgres_kerberos'; GRANT ALL PRIVILEGES ON DATABASE netty_driver_test to postgres_kerberos;" -U $PGUSER
+psql -d "netty_driver_test" -c "CREATE TYPE example_mood AS ENUM ('sad', 'ok', 'happy');" -U $PGUSER
+
+sudo chmod 666 $PGDATA/pg_hba.conf
 
 echo "pg_hba.conf goes as follows"
-cat "/etc/postgresql/9.1/main/pg_hba.conf"
+#cat "$PGDATA/pg_hba.conf"
 
-sudo echo "host     all             postgres        127.0.0.1/32            trust" >  /etc/postgresql/9.1/main/pg_hba.conf
-sudo echo "host     all             postgres_md5    127.0.0.1/32            md5" >> /etc/postgresql/9.1/main/pg_hba.conf
-sudo echo "host     all             postgres_cleartext 127.0.0.1/32         password" >> /etc/postgresql/9.1/main/pg_hba.conf
-sudo echo "host     all             postgres_kerberos 127.0.0.1/32         krb5" >> /etc/postgresql/9.1/main/pg_hba.conf
+sudo echo "local    all             all                                     trust"    >  $PGDATA/pg_hba.conf
+sudo echo "host     all             postgres           127.0.0.1/32         trust"    >> $PGDATA/pg_hba.conf
+sudo echo "host     all             postgres_md5       127.0.0.1/32         md5"      >> $PGDATA/pg_hba.conf
+sudo echo "host     all             postgres_cleartext 127.0.0.1/32         password" >> $PGDATA/pg_hba.conf
+sudo echo "host     all             postgres_kerberos  127.0.0.1/32         krb5"     >> $PGDATA/pg_hba.conf
 
 echo "pg_hba.conf is now like"
-cat "/etc/postgresql/9.1/main/pg_hba.conf"
+cat "$PGDATA/pg_hba.conf"
+
+sudo chmod 600 $PGDATA/pg_hba.conf
+
+sudo chmod 666 $PGDATA/postgresql.conf
+
+echo "postgresql.conf goes as follows"
+#cat "$PGDATA/postgresql.conf"
+
+sudo echo "ssl = on" > $PGDATA/postgresql.conf
+
+echo "postgresql.conf is now like"
+cat "$PGDATA/postgresql.conf"
+
+sudo chmod 600 $PGDATA/postgresql.conf
+
+sudo cp $SCRIPTSDIR/server.crt $PGDATA/
+sudo cp $SCRIPTSDIR/server.key $PGDATA/
+sudo chown $PGUSER $PGDATA/server.crt $PGDATA/server.key
+sudo chmod 600 $PGDATA/server.crt $PGDATA/server.key
 
 sudo /etc/init.d/postgresql restart
