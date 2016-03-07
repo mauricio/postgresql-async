@@ -42,12 +42,12 @@ sudo chmod 600 $PGDATA/pg_hba.conf
 sudo chmod 666 $PGDATA/postgresql.conf
 
 echo "previous certificate"
-cat "$PGDATA/server.crt"
 
-sudo chmod 666 $PGDATA/server.crt $PGDATA/server.key
-sudo cp $SCRIPTSDIR/server.crt $PGDATA/
-sudo cp $SCRIPTSDIR/server.key $PGDATA/
-sudo chown $PGUSER $PGDATA/server.crt $PGDATA/server.key
-sudo chmod 600 $PGDATA/server.crt $PGDATA/server.key
+sudo chmod 666 /var/ramfs/postgresql/9.1/main/server.crt /var/ramfs/postgresql/9.1/main/server.key
+cat "/var/ramfs/postgresql/9.1/main/server.crt"
+sudo cp $SCRIPTSDIR/server.crt /var/ramfs/postgresql/9.1/main/
+sudo cp $SCRIPTSDIR/server.key /var/ramfs/postgresql/9.1/main/
+sudo chown $PGUSER /var/ramfs/postgresql/9.1/main/server.crt /var/ramfs/postgresql/9.1/main/server.key
+sudo chmod 600 /var/ramfs/postgresql/9.1/main/server.crt /var/ramfs/postgresql/9.1/main/server.key
 
 sudo /etc/init.d/postgresql restart
