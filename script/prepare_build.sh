@@ -28,7 +28,8 @@ sudo chmod 666 $PGDATA/pg_hba.conf
 echo "pg_hba.conf goes as follows"
 cat "$PGDATA/pg_hba.conf"
 
-sudo echo "host     all             postgres           127.0.0.1/32         trust"    >  $PGDATA/pg_hba.conf
+sudo echo "local    all             all                                     trust"    >  $PGDATA/pg_hba.conf
+sudo echo "host     all             postgres           127.0.0.1/32         trust"    >> $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres_md5       127.0.0.1/32         md5"      >> $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres_cleartext 127.0.0.1/32         password" >> $PGDATA/pg_hba.conf
 sudo echo "host     all             postgres_kerberos  127.0.0.1/32         krb5"     >> $PGDATA/pg_hba.conf
@@ -40,18 +41,10 @@ sudo chmod 600 $PGDATA/pg_hba.conf
 
 sudo chmod 666 $PGDATA/postgresql.conf
 
-echo "postgresql.conf goes as follows"
-cat "$PGDATA/postgresql.conf"
+echo "previous certificate"
+cat "$PGDATA/server.crt"
 
-sudo echo "ssl = on"                     >  $PGDATA/postgresql.conf
-sudo echo "ssl_cert_file = 'server.crt'" >> $PGDATA/postgresql.conf
-sudo echo "ssl_key_file = 'server.key'"  >> $PGDATA/postgresql.conf
-
-echo "postgresql.conf is now like"
-cat "$PGDATA/postgresql.conf"
-
-sudo chmod 600 $PGDATA/postgresql.conf
-
+sudo chmod 666 $PGDATA/server.crt $PGDATA/server.key
 sudo cp $SCRIPTSDIR/server.crt $PGDATA/
 sudo cp $SCRIPTSDIR/server.key $PGDATA/
 sudo chown $PGUSER $PGDATA/server.crt $PGDATA/server.key
