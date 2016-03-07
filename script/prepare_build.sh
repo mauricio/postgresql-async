@@ -43,7 +43,7 @@ sudo chmod 600 $PGCONF/pg_hba.conf
 
 #sudo chmod 666 /var/ramfs/postgresql/9.1/main/server.crt /var/ramfs/postgresql/9.1/main/server.key
 #sudo cat "/var/ramfs/postgresql/9.1/main/server.crt"
-sudo cp -f $SCRIPTDIR/server.crt $SCRIPTSDIR/server.key $PGDATA
+sudo cp -f $SCRIPTDIR/server.crt $SCRIPTDIR/server.key $PGDATA
 #sudo chown $PGUSER /var/ramfs/postgresql/9.1/main/server.crt /var/ramfs/postgresql/9.1/main/server.key
 #sudo chmod 600 /var/ramfs/postgresql/9.1/main/server.crt /var/ramfs/postgresql/9.1/main/server.key
 
