@@ -147,6 +147,10 @@ trait ConnectionHelper {
     awaitFuture( connection.sendQuery(query) )
   }
 
+  def releaseStatement( connection : Connection, query : String  ) : Boolean = {
+    awaitFuture( connection.releasePreparedStatement(query) )
+  }
+
   def executePreparedStatement( connection : Connection, query : String, values : Any * ) : QueryResult = {
     awaitFuture( connection.sendPreparedStatement(query, values) )
   }

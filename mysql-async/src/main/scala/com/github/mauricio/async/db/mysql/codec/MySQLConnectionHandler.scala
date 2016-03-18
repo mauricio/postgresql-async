@@ -360,4 +360,15 @@ class MySQLConnectionHandler(
     }, duration.toMillis, TimeUnit.MILLISECONDS)
   }
 
+  def closePreparedStatement(query : String) : Future[Boolean] = {
+    this.parsedStatements.get(query) match {
+      case Some(statement) => {
+        this.parsedStatements.remove(query)
+        this.writeAndHandleError(CloseStatementMessage(statement.statementId))
+        Future.successful(true)
+      }
+      case None => Future.successful(false)
+    }
+  }
+
 }

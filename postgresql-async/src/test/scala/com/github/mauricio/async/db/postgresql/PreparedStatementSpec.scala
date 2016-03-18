@@ -371,6 +371,44 @@ class PreparedStatementSpec extends Specification with DatabaseTestHelper {
       }
     }
 
+    "deallocates prepared statements" in {
+
+      withHandler {
+        handler =>
+          val firstContent = "Some Moment"
+          val secondContent = "Some other moment"
+          val date = LocalDate.now()
+
+          executeDdl(handler, this.messagesCreate)
+          executePreparedStatement(handler, this.messagesInsert, Array(firstContent, None))
+
+          val statement = "INSERT INTO messages                                                                  (content,moment) VALUES ($1,$2) RETURNING id"
+          val listedStatements = executeQuery(handler, "SELECT * FROM pg_prepared_statements" ).rows.get
+          listedStatements.size === 1
+
+          listedStatements(0)(1) === statement
+
+          releasePreparedStatement(handler, this.messagesInsert)
+
+          executeQuery(handler, "SELECT * FROM pg_prepared_statements" ).rows.get.size === 0
+
+          executePreparedStatement(handler, this.messagesInsert, Array(secondContent, date))
+
+          val rows = executePreparedStatement(handler, this.messagesSelectAll).rows.get
+
+          rows.length === 2
+
+          rows(0)("id") === 1
+          rows(0)("content") === firstContent
+          rows(0)("moment") === date
+
+          rows(1)("id") === 2
+          rows(1)("content") === secondContent
+          rows(1)("moment") === date
+      }
+
+    }
+
   }
 
 }

@@ -22,6 +22,7 @@ trait PostgreSQLConnectionDelegate {
 
   def onAuthenticationResponse(message: AuthenticationMessage)
   def onCommandComplete( message : CommandCompleteMessage )
+  def onCloseComplete()
   def onDataRow( message : DataRowMessage )
   def onError( message : ErrorMessage )
   def onError( throwable : Throwable )

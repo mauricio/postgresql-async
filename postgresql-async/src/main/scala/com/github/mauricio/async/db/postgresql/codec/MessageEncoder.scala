@@ -40,6 +40,7 @@ class MessageEncoder(charset: Charset, encoderRegistry: ColumnEncoderRegistry) e
   private val startupEncoder = new StartupMessageEncoder(charset)
   private val queryEncoder = new QueryMessageEncoder(charset)
   private val credentialEncoder = new CredentialEncoder(charset)
+  private val closeStatementOrPortalEncoder = new CloseStatementEncoder(charset)
 
   override def encode(ctx: ChannelHandlerContext, msg: AnyRef, out: java.util.List[Object]) = {
 
@@ -52,6 +53,7 @@ class MessageEncoder(charset: Charset, encoderRegistry: ColumnEncoderRegistry) e
           case ServerMessage.Startup => this.startupEncoder
           case ServerMessage.Query => this.queryEncoder
           case ServerMessage.PasswordMessage => this.credentialEncoder
+          case ServerMessage.CloseStatementOrPortal => this.closeStatementOrPortalEncoder
           case _ => throw new EncoderNotAvailableException(message)
         }
 

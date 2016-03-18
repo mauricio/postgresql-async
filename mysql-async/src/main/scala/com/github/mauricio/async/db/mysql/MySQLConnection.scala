@@ -265,4 +265,8 @@ class MySQLConnection(
     this.queryPromiseReference.getAndSet(None)
   }
 
+  override def releasePreparedStatement(query: String): Future[Boolean] = {
+    this.validateIsReadyForQuery()
+    this.connectionHandler.closePreparedStatement(query)
+  }
 }

@@ -108,4 +108,6 @@ class ConnectionPool[T <: Connection](
   override def inTransaction[A](f : Connection => Future[A])(implicit context : ExecutionContext = executionContext) : Future[A] =
     this.use(_.inTransaction[A](f)(context))(executionContext)
 
+  override def releasePreparedStatement(query: String): Future[Boolean] = Future.successful(false)
+
 }

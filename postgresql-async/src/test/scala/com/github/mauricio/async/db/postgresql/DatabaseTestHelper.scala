@@ -95,6 +95,12 @@ trait DatabaseTestHelper {
     } )
   }
 
+  def releasePreparedStatement(handler : Connection, query : String) = {
+    handleTimeout( handler, {
+      Await.result(handler.releasePreparedStatement(query), Duration(5, SECONDS))
+    } )
+  }
+
   def executePreparedStatement(
                                 handler: Connection,
                                 statement: String,

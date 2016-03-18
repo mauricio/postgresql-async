@@ -25,11 +25,14 @@ import scala.collection.mutable.ArrayBuffer
 
 object PreparedStatementEncoderHelper {
   final val log = Log.get[PreparedStatementEncoderHelper]
+
+  final val Portal = 'P'
+  final val Statement = 'S'
 }
 
 trait PreparedStatementEncoderHelper {
 
-  import PreparedStatementEncoderHelper.log
+  import PreparedStatementEncoderHelper._
 
   def writeExecutePortal(
                           statementIdBytes: Array[Byte],
@@ -115,11 +118,19 @@ trait PreparedStatementEncoderHelper {
     executeBuffer.writeByte(0)
     executeBuffer.writeInt(0)
 
+    val closeAndSync = closeAndSyncBuffer(statementIdBytes, Portal)
+
+    Unpooled.wrappedBuffer(bindBuffer, executeBuffer, closeAndSync)
+  }
+
+  def isNull(value: Any): Boolean = value == null || value == None
+
+  def closeAndSyncBuffer(statementIdBytes : Array[Byte], closeType : Char) : ByteBuf = {
     val closeLength = 1 + 4 + 1 + statementIdBytes.length + 1
     val closeBuffer = Unpooled.buffer(closeLength)
     closeBuffer.writeByte(ServerMessage.CloseStatementOrPortal)
     closeBuffer.writeInt(closeLength - 1)
-    closeBuffer.writeByte('P')
+    closeBuffer.writeByte(closeType)
     closeBuffer.writeBytes(statementIdBytes)
     closeBuffer.writeByte(0)
 
@@ -127,10 +138,7 @@ trait PreparedStatementEncoderHelper {
     syncBuffer.writeByte(ServerMessage.Sync)
     syncBuffer.writeInt(4)
 
-    Unpooled.wrappedBuffer(bindBuffer, executeBuffer, syncBuffer, closeBuffer)
-
+    Unpooled.wrappedBuffer(closeBuffer, syncBuffer)
   }
-
-  def isNull(value: Any): Boolean = value == null || value == None
 
 }

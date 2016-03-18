@@ -29,7 +29,6 @@ import com.github.mauricio.async.db.{Configuration, Connection}
 import java.util.concurrent.atomic.{AtomicLong,AtomicInteger,AtomicReference}
 import messages.backend._
 import messages.frontend._
-import scala.Some
 import scala.concurrent._
 import io.netty.channel.EventLoopGroup
 import java.util.concurrent.CopyOnWriteArrayList
@@ -74,6 +73,7 @@ class PostgreSQLConnection
 
   private var recentError = false
   private val queryPromiseReference = new AtomicReference[Option[Promise[QueryResult]]](None)
+  private val closeStatementReference = new AtomicReference[Option[Promise[PreparedStatementHolder]]](None)
   private var currentQuery: Option[MutableResultSet[PostgreSQLColumnData]] = None
   private var currentPreparedStatement: Option[PreparedStatementHolder] = None
   private var version = Version(0,0,0)
@@ -318,5 +318,41 @@ class PostgreSQLConnection
 
   override def toString: String = {
     s"${this.getClass.getSimpleName}{counter=${this.currentCount}}"
+  }
+
+  override def releasePreparedStatement(query: String): Future[Boolean] = {
+    if ( this.closeStatementReference.get.isDefined ) {
+      val exception = new PendingCloseStatementException(s"There is already another close operation pending, your query was [${query}]")
+      exception.fillInStackTrace()
+      return Future.failed(exception)
+    }
+
+    this.validateIfItIsReadyForQuery("You can't close a prepared statement if we're still running a query")
+
+    this.parsedStatements.get(query) match {
+      case Some(statement) => {
+        this.write(PreparedStatementCloseMessage(statement.statementId))
+        this.currentPreparedStatement = Some(statement)
+        val promise = Promise[PreparedStatementHolder]()
+        this.closeStatementReference.set(Some(promise))
+        promise.future.map {
+          found =>
+            this.parsedStatements.remove(query)
+            this.closeStatementReference.set(None)
+            true
+        }
+      }
+      case None => Future.successful(false)
+    }
+  }
+
+  override def onCloseComplete(): Unit = {
+    this.closeStatementReference.get().foreach {
+      reference =>
+        this.currentPreparedStatement.foreach {
+          statement =>
+            reference.success(statement)
+        }
+    }
   }
 }

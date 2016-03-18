@@ -392,6 +392,32 @@ class PreparedStatementsSpec extends Specification with ConnectionHelper {
 
     }
 
+    "be able to release prepared statements" in {
+
+      withConnection {
+        connection =>
+          val query = "select 1 as id , 'joe' as name"
+          val result = executePreparedStatement(connection, query).rows.get
+
+          result(0)("name") === "joe"
+          result(0)("id") === 1
+          result.length === 1
+
+          val statementMetrics = executeQuery(connection, "SHOW SESSION STATUS LIKE 'com_%prepare%'").rows.get
+          statementMetrics(1)("Variable_name") === "Com_stmt_prepare"
+          statementMetrics(1)("Value") === "1"
+
+          releaseStatement(connection, query)
+
+          Thread.sleep(2000)
+
+          val statementMetricsAfter = executeQuery(connection, "SHOW SESSION STATUS LIKE 'com_%prepare%'").rows.get
+          statementMetricsAfter(1)("Variable_name") === "Com_stmt_prepare"
+          statementMetricsAfter(1)("Value") === "0"
+      }
+
+    }
+
   }
 
 }

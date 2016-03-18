@@ -143,6 +143,7 @@ class PostgreSQLConnectionHandler
             connectionDelegate.onCommandComplete(m.asInstanceOf[CommandCompleteMessage])
           }
           case ServerMessage.CloseComplete => {
+            connectionDelegate.onCloseComplete()
           }
           case ServerMessage.DataRow => {
             connectionDelegate.onDataRow(m.asInstanceOf[DataRowMessage])

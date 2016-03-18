@@ -61,6 +61,10 @@ class MySQLOneToOneEncoder(charset: Charset, charsetMapper: CharsetMapper)
         sequence = 0
         this.executeEncoder
       }
+      case ClientMessage.PreparedStatementClose => {
+        sequence = 0
+        PreparedStatementCloseEncoder
+      }
       case ClientMessage.PreparedStatementPrepare => {
         sequence = 0
         this.prepareEncoder
