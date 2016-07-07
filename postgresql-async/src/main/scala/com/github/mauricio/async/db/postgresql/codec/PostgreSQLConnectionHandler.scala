@@ -81,7 +81,7 @@ class PostgreSQLConnectionHandler
 
   def connect: Future[PostgreSQLConnectionHandler] = {
     this.bootstrap.group(this.group)
-    this.bootstrap.channel(classOf[NioSocketChannel])
+    this.bootstrap.channel(configuration.channelClass)
     this.bootstrap.handler(new ChannelInitializer[channel.Channel]() {
 
       override def initChannel(ch: channel.Channel): Unit = {

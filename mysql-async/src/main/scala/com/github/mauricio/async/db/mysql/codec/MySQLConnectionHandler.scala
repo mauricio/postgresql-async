@@ -68,7 +68,7 @@ class MySQLConnectionHandler(
   private var currentContext: ChannelHandlerContext = null
 
   def connect: Future[MySQLConnectionHandler] = {
-    this.bootstrap.channel(classOf[NioSocketChannel])
+    this.bootstrap.channel(configuration.channelClass)
     this.bootstrap.handler(new ChannelInitializer[io.netty.channel.Channel]() {
 
       override def initChannel(channel: io.netty.channel.Channel): Unit = {
