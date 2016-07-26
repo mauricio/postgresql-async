@@ -13,6 +13,8 @@ project/project/*
 postgresql-async/target/*
 db-async-common/target/*
 mysql-async/target/*
+jdbc-async/target/*
+db-async-examples/target/*
 .rvmrc
 .ruby-version
 .ruby-gemset
