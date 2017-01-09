@@ -1,0 +1,36 @@
+version: '2'
+
+services:
+  app:
+    build: .
+    links:
+      - mysql
+      - postgres
+    environment:
+      DATABASE_HOST: database
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: sekret
+      DISABLE_SYSLOG: "true"
+    working_dir: /app
+    volumes:
+      - .:/app
+
+  mysql:
+    image: mysql:5.7
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql:/var/lib/mysql
+
+  postgres:
+    image: postgres:9.6
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres:/var/lib/postgresql/data
+
+volumes:
+  mysql:
+    driver: local
+  postgres:
+    driver: local

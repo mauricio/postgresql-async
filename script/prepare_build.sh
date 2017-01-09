@@ -13,8 +13,8 @@ mysql -u root -e "GRANT ALL PRIVILEGES ON *.* TO 'mysql_async_nopw'@'localhost' 
 echo "preparing postgresql configs"
 
 PGUSER=postgres
-PGCONF=/etc/postgresql/9.1/main
-PGDATA=/var/ramfs/postgresql/9.1/main
+PGCONF=/etc/postgresql/9.4/main
+PGDATA=/var/ramfs/postgresql/9.4/main
 
 psql -d "postgres" -c 'create database netty_driver_test;' -U $PGUSER
 psql -d "postgres" -c 'create database netty_driver_time_test;' -U $PGUSER
