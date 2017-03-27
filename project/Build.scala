@@ -6,6 +6,8 @@ object ProjectBuild extends Build {
   val commonName = "db-async-common"
   val postgresqlName = "postgresql-async"
   val mysqlName = "mysql-async"
+  val jdbcName = "jdbc-async"
+  val examplesName = "db-async-examples"
 
   lazy val root = Project(
     id = "db-async-base",
@@ -15,7 +17,7 @@ object ProjectBuild extends Build {
       publishLocal := (),
       publishArtifact := false
     ),
-    aggregate = Seq(common, postgresql, mysql)
+    aggregate = Seq(common, postgresql, mysql, jdbc, examples)
   )
 
   lazy val common = Project(
@@ -44,6 +46,24 @@ object ProjectBuild extends Build {
       libraryDependencies ++= Configuration.implementationDependencies
     )
   ) dependsOn (common)
+
+  lazy val jdbc = Project(
+    id = jdbcName,
+    base = file(jdbcName),
+    settings = Configuration.baseSettings ++ Seq(
+      name := jdbcName,
+      libraryDependencies ++= Configuration.implementationDependencies
+    )
+  ) dependsOn (common)
+
+  lazy val examples = Project(
+    id = examplesName,
+    base = file(examplesName),
+    settings = Configuration.baseSettings ++ Seq(
+      name := examplesName,
+      libraryDependencies += "com.h2database" % "h2" % "1.4.192"
+    )
+  ) dependsOn (postgresql, mysql, jdbc)
 
 }
 
