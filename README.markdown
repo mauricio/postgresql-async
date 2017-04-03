@@ -46,7 +46,8 @@ You can view the project's [CHANGELOG here](CHANGELOG.md).
 * [mod-mysql-postgresql](https://github.com/vert-x/mod-mysql-postgresql) - [vert.x](http://vertx.io/) module that integrates
  the driver into a vert.x application;
 * [dbmapper](https://github.com/njeuk/dbmapper) - enables SQL queries with automatic mapping from the database table to the Scala 
- class and a mechanism to create a Table Date Gateway model with very little boiler plate code;
+ class and a mechanism to create a [Table Data Gateway](https://www.martinfowler.com/eaaCatalog/tableDataGateway.html) model with 
+ very little boiler plate code;
 * [Quill](http://getquill.io) - A compile-time language integrated query library for Scala.
 
 ## Include them as dependencies
