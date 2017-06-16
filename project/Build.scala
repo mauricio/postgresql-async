@@ -62,7 +62,7 @@ object Configuration {
     "org.slf4j" % "slf4j-api" % "1.7.22",
     "joda-time" % "joda-time" % "2.9.7",
     "org.joda" % "joda-convert" % "1.8.1",
-    "io.netty" % "netty-all" % "4.1.6.Final",
+    "io.netty" % "netty-all" % "4.1.10.Final",
     "org.javassist" % "javassist" % "3.21.0-GA",
     specs2Dependency,
     specs2JunitDependency,
