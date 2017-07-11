@@ -19,6 +19,7 @@ package com.github.mauricio.async.db.pool
 import java.util.concurrent.RejectedExecutionException
 
 import com.github.mauricio.async.db.util.{Log, Worker}
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicLong
 import java.util.{Timer, TimerTask}
 
@@ -56,6 +57,7 @@ class SingleThreadedAsyncObjectPool[T](
   private val checkouts = new ArrayBuffer[T](configuration.maxObjects)
   private val waitQueue = new Queue[Promise[T]]()
   private val timer = new Timer("async-object-pool-timer-" + Counter.incrementAndGet(), true)
+  private val createSemaphore = new Semaphore(configuration.maxObjects)
   timer.scheduleAtFixedRate(new TimerTask {
     def run() {
       mainPool.action {
@@ -105,7 +107,7 @@ class SingleThreadedAsyncObjectPool[T](
             this.addBack(item, promise)
           }
           case Failure(e) => {
-            this.factory.destroy(item)
+            this.destroy(item)
             promise.failure(e)
           }
         }
@@ -138,7 +140,7 @@ class SingleThreadedAsyncObjectPool[T](
             this.timer.cancel()
             this.mainPool.shutdown
             this.closed = true
-            (this.poolables.map(i => i.item) ++ this.checkouts).foreach(item => factory.destroy(item))
+            (this.poolables.map(i => i.item) ++ this.checkouts).foreach(item => destroy(item))
             promise.success(this)
           } catch {
             case e: Exception => promise.failure(e)
@@ -217,13 +219,15 @@ class SingleThreadedAsyncObjectPool[T](
    */
 
   private def createOrReturnItem(promise: Promise[T]) {
-    if (this.poolables.isEmpty) {
+    if (this.poolables.isEmpty && createSemaphore.tryAcquire) {
       try {
         val item = this.factory.create
         this.checkouts += item
         promise.success(item)
       } catch {
-        case e: Exception => promise.failure(e)
+        case e: Exception =>
+          promise.failure(e)
+          createSemaphore.release()
       }
     } else {
       val h :: t = this.poolables
@@ -255,17 +259,22 @@ class SingleThreadedAsyncObjectPool[T](
             if (poolable.timeElapsed > configuration.maxIdle) {
               log.debug("Connection was idle for {}, maxIdle is {}, removing it", poolable.timeElapsed, configuration.maxIdle)
               removals += poolable
-              factory.destroy(poolable.item)
+              destroy(poolable.item)
             }
           }
           case Failure(e) => {
             log.error("Failed to validate object", e)
             removals += poolable
-            factory.destroy(poolable.item)
+            destroy(poolable.item)
           }
         }
     }
     this.poolables = this.poolables.diff(removals)
+  }
+
+  private def destroy(i: T) = {
+    factory.destroy(i)
+    createSemaphore.release()
   }
 
   private class PoolableHolder[T](val item: T) {
