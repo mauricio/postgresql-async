@@ -21,7 +21,12 @@ import org.joda.time.LocalDate
 import com.github.mauricio.async.db.util.Log
 import com.github.mauricio.async.db.exceptions.InsufficientParametersException
 import java.util.UUID
+
 import com.github.mauricio.async.db.postgresql.exceptions.GenericDatabaseException
+
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, SECONDS}
+import scala.util.Random
 
 class PreparedStatementSpec extends Specification with DatabaseTestHelper {
 
@@ -371,6 +376,30 @@ class PreparedStatementSpec extends Specification with DatabaseTestHelper {
       }
     }
 
+    "not take twice the time as a non prepared statement" in {
+      withHandler {
+        handler =>
+          executeDdl(handler, "create temp table performance_test (id integer PRIMARY KEY, int1 integer)")
+          (1 to 2000).foreach(i =>
+            executeQuery(handler, s"insert into performance_test (id, int1) values ($i, ${Random.nextInt(20000)})"))
+
+          val preparedStatementStartTime = System.nanoTime()
+          (1 to 2000).foreach { i =>
+            val id = Random.nextInt(2000)
+            Await.result(handler.sendPreparedStatement("update performance_test set int1 = int1 where id = ?", Array(id)), Duration(5, SECONDS))
+          }
+          val preparedStatementTime = System.nanoTime() - preparedStatementStartTime
+
+          val plainQueryStartTime = System.nanoTime()
+          (1 to 2000).foreach { i =>
+            val id = Random.nextInt(2000)
+            Await.result(handler.sendQuery(s"update performance_test set int1 = int1 where id = $id"), Duration(5, SECONDS))
+          }
+          val plainQueryTime = System.nanoTime() - plainQueryStartTime
+
+          preparedStatementTime must beLessThan(plainQueryTime * 2)
+      }
+    }
   }
 
 }
