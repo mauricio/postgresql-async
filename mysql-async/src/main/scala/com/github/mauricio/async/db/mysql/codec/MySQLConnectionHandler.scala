@@ -51,7 +51,7 @@ class MySQLConnectionHandler(
   extends SimpleChannelInboundHandler[Object] {
 
   private implicit val internalPool = executionContext
-  private final val log = Log.getByName(s"[connection-handler]${connectionId}")
+  private final val log = Log.getByName("[connection-handler]")
   private final val bootstrap = new Bootstrap().group(this.group)
   private final val connectionPromise = Promise[MySQLConnectionHandler]
   private final val decoder = new MySQLFrameDecoder(configuration.charset, connectionId)

@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class MySQLFrameDecoder(charset: Charset, connectionId: String) extends ByteToMessageDecoder {
 
-  private final val log = Log.getByName(s"[frame-decoder]${connectionId}")
+  private final val log = Log.getByName("[frame-decoder]")
   private final val messagesCount = new AtomicInteger()
   private final val handshakeDecoder = new HandshakeV10Decoder(charset)
   private final val errorDecoder = new ErrorDecoder(charset)
