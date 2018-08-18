@@ -39,7 +39,7 @@ object PostgreSQLTimestampEncoderDecoder extends ColumnEncoderDecoder {
     index =>
       new DateTimeFormatterBuilder()
         .appendPattern("yyyy-MM-dd HH:mm:ss")
-        .appendPattern("." + ("S" * index ))
+        .appendOptional(new DateTimeFormatterBuilder().appendPattern("." + ("S" * index )).toParser)
         .appendOptional(optionalTimeZone)
         .toFormatter
   }
