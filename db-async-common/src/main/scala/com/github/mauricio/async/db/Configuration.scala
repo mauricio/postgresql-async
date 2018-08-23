@@ -19,6 +19,8 @@ package com.github.mauricio.async.db
 import java.nio.charset.Charset
 
 import io.netty.buffer.{ByteBufAllocator, PooledByteBufAllocator}
+import io.netty.channel.Channel
+import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.util.CharsetUtil
 
 import scala.concurrent.duration._
@@ -47,8 +49,11 @@ object Configuration {
  *                           to any value you would like but again, make sure you know what you are doing if you do
  *                           change it.
  * @param allocator the netty buffer allocator to be used
+ * @param channelClass the netty channel class to use. Should match the type of the event loop group set
+ *                     for connections. Defaults to [[NioSocketChannel]]
  * @param connectTimeout the timeout for connecting to servers
  * @param testTimeout the timeout for connection tests performed by pools
+ * @param statementTimeout the optional per-session statement timeout to set in the database
  * @param queryTimeout the optional query timeout
  *
  */
@@ -62,6 +67,8 @@ case class Configuration(username: String,
                          charset: Charset = Configuration.DefaultCharset,
                          maximumMessageSize: Int = 16777216,
                          allocator: ByteBufAllocator = PooledByteBufAllocator.DEFAULT,
+                         channelClass: Class[_ <: Channel] = classOf[NioSocketChannel],
                          connectTimeout: Duration = 5.seconds,
                          testTimeout: Duration = 5.seconds,
+                         statementTimeout: Option[Duration] = None,
                          queryTimeout: Option[Duration] = None)

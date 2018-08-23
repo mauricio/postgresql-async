@@ -51,8 +51,16 @@ class PostgreSQLConnectionFactory(
 
   def create: PostgreSQLConnection = {
     val connection = new PostgreSQLConnection(configuration, group = group, executionContext = executionContext)
-    Await.result(connection.connect, configuration.connectTimeout)
-
+    val future = configuration.statementTimeout match {
+      case Some(timeout) => {
+        connection.connect.flatMap(conn =>
+          conn.sendQuery(s"SET statement_timeout TO ${timeout.toMillis};"))(executionContext)
+      }
+      case None => {
+        connection.connect
+      }
+    }
+    Await.result(future, configuration.connectTimeout)
     connection
   }
 
