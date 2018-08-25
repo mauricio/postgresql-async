@@ -30,7 +30,6 @@ class NumericSpec extends Specification with DatabaseTestHelper {
 
           val id = executePreparedStatement(handler, "INSERT INTO numeric_test DEFAULT VALUES RETURNING id").rows.get(0)("id")
           executePreparedStatement(handler, "UPDATE numeric_test SET numcol = ? WHERE id = ?", Array[Any](1234, id))
-          executePreparedStatement(handler, "UPDATE numeric_test SET numcol = ? WHERE id = ?", Array[Any](123.123, id))
 
           id === 1
       }
