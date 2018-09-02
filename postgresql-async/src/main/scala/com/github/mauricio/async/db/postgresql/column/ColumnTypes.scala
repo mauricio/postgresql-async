@@ -20,6 +20,8 @@ object ColumnTypes {
   final val Untyped = 0
   final val Bigserial = 20
   final val BigserialArray = 1016
+  final val Bigint = 20
+  final val BigintArray = 1016
   final val Char = 18
   final val CharArray = 1002
   final val Smallint = 21
