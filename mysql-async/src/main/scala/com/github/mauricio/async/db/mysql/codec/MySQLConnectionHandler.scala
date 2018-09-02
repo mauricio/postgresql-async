@@ -59,7 +59,7 @@ class MySQLConnectionHandler(
   private final val sendLongDataEncoder = new SendLongDataEncoder()
   private final val currentParameters = new ArrayBuffer[ColumnDefinitionMessage]()
   private final val currentColumns = new ArrayBuffer[ColumnDefinitionMessage]()
-  private final val parsedStatements = new HashMap[String,PreparedStatementHolder]()
+  private final val parsedStatements = new HashMap[String,LitePreparedStatementHolder]()
   private final val binaryRowDecoder = new BinaryRowDecoder()
 
   private var currentPreparedStatementHolder : PreparedStatementHolder = null
@@ -201,7 +201,7 @@ class MySQLConnectionHandler(
 
     this.parsedStatements.get(preparedStatement.statement) match {
       case Some( item ) => {
-        this.executePreparedStatement(item.statementId, item.columns.size, preparedStatement.values, item.parameters)
+        this.executePreparedStatement(item.statementId, item.columnSize, preparedStatement.values, item.parameterSize)
       }
       case None => {
         decoder.preparedStatementPrepareStarted()
@@ -237,8 +237,8 @@ class MySQLConnectionHandler(
     }
   }
 
-  private def executePreparedStatement( statementId : Array[Byte], columnsCount : Int, values : Seq[Any], parameters : Seq[ColumnDefinitionMessage] ): Future[ChannelFuture] = {
-    decoder.preparedStatementExecuteStarted(columnsCount, parameters.size)
+  private def executePreparedStatement( statementId : Array[Byte], columnsCount : Int, values : Seq[Any], parameterSize : Int ): Future[ChannelFuture] = {
+    decoder.preparedStatementExecuteStarted(columnsCount, parameterSize)
     this.currentColumns.clear()
     this.currentParameters.clear()
 
@@ -259,10 +259,10 @@ class MySQLConnectionHandler(
         }
       }
       channelFuture flatMap { _ =>
-        writeAndHandleError(new PreparedStatementExecuteMessage(statementId, values, nonLongIndices.toSet, parameters))
+        writeAndHandleError(new PreparedStatementExecuteMessage(statementId, values, nonLongIndices.toSet, parameterSize))
       }
     } else {
-      writeAndHandleError(new PreparedStatementExecuteMessage(statementId, values, nonLongIndices.toSet, parameters))
+      writeAndHandleError(new PreparedStatementExecuteMessage(statementId, values, nonLongIndices.toSet, parameterSize))
     }
   }
 
@@ -308,12 +308,12 @@ class MySQLConnectionHandler(
     this.currentQuery = new MutableResultSet[ColumnDefinitionMessage](columns)
 
     if ( this.currentPreparedStatementHolder != null ) {
-      this.parsedStatements.put( this.currentPreparedStatementHolder.statement, this.currentPreparedStatementHolder )
+      this.parsedStatements.put( this.currentPreparedStatementHolder.statement, LitePreparedStatementHolder(this.currentPreparedStatementHolder) )
       this.executePreparedStatement(
         this.currentPreparedStatementHolder.statementId,
         this.currentPreparedStatementHolder.columns.size,
         this.currentPreparedStatement.values,
-        this.currentPreparedStatementHolder.parameters
+        this.currentPreparedStatementHolder.parameters.size
       )
       this.currentPreparedStatementHolder = null
       this.currentPreparedStatement = null

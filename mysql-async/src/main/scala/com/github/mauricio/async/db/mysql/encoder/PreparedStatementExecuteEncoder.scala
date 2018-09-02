@@ -33,7 +33,7 @@ class PreparedStatementExecuteEncoder( rowEncoder : BinaryRowEncoder ) extends M
     buffer.writeByte(0x00) // no cursor
     buffer.writeInt(1)
 
-    if ( m.parameters.isEmpty ) {
+    if ( m.parameterSize == 0 ) {
       buffer
     } else {
       Unpooled.wrappedBuffer(buffer, encodeValues(m.values, m.valuesToInclude))

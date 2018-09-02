@@ -22,5 +22,5 @@ case class PreparedStatementExecuteMessage (
                                              statementId : Array[Byte],
                                              values : Seq[Any],
                                              valuesToInclude : Set[Int],
-                                             parameters : Seq[ColumnDefinitionMessage] )
+                                             parameterSize : Int )
   extends ClientMessage( ClientMessage.PreparedStatementExecute )
