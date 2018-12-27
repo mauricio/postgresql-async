@@ -31,14 +31,14 @@ object PostgreSQLColumnEncoderRegistry {
 class PostgreSQLColumnEncoderRegistry extends ColumnEncoderRegistry {
 
   private val classesSequence_ : List[(Class[_], (ColumnEncoder, Int))] = List(
-    classOf[Int] -> (IntegerEncoderDecoder -> ColumnTypes.Numeric),
-    classOf[java.lang.Integer] -> (IntegerEncoderDecoder -> ColumnTypes.Numeric),
+    classOf[Int] -> (IntegerEncoderDecoder -> ColumnTypes.Integer),
+    classOf[java.lang.Integer] -> (IntegerEncoderDecoder -> ColumnTypes.Integer),
 
-    classOf[java.lang.Short] -> (ShortEncoderDecoder -> ColumnTypes.Numeric),
-    classOf[Short] -> (ShortEncoderDecoder -> ColumnTypes.Numeric),
+    classOf[java.lang.Short] -> (ShortEncoderDecoder -> ColumnTypes.Smallint),
+    classOf[Short] -> (ShortEncoderDecoder -> ColumnTypes.Smallint),
 
-    classOf[Long] -> (LongEncoderDecoder -> ColumnTypes.Numeric),
-    classOf[java.lang.Long] -> (LongEncoderDecoder -> ColumnTypes.Numeric),
+    classOf[Long] -> (LongEncoderDecoder -> ColumnTypes.Bigserial),
+    classOf[java.lang.Long] -> (LongEncoderDecoder -> ColumnTypes.Bigserial),
 
     classOf[String] -> (StringEncoderDecoder -> ColumnTypes.Varchar),
     classOf[java.lang.String] -> (StringEncoderDecoder -> ColumnTypes.Varchar),
