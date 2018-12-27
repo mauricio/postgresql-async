@@ -74,6 +74,8 @@ object ColumnTypes {
 
   final val FIELD_TYPE_YEAR = 13
 
+  final val FIELD_TYPE_JSON = 245
+
   final val Mapping = Map(
     FIELD_TYPE_BIT -> "bit",
     FIELD_TYPE_BLOB -> "blob",
@@ -102,7 +104,8 @@ object ColumnTypes {
     FIELD_TYPE_TINY_BLOB -> "tiny_blob",
     FIELD_TYPE_VAR_STRING -> "var_string",
     FIELD_TYPE_VARCHAR -> "varchar",
-    FIELD_TYPE_YEAR -> "year"
+    FIELD_TYPE_YEAR -> "year",
+    FIELD_TYPE_JSON -> "json"
   )
 
 }

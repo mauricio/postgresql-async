@@ -36,7 +36,8 @@ class DecoderRegistry(charset: Charset) {
 
     (columnType: @switch) match {
       case ColumnTypes.FIELD_TYPE_VARCHAR |
-           ColumnTypes.FIELD_TYPE_ENUM => this.stringDecoder
+           ColumnTypes.FIELD_TYPE_ENUM |
+           ColumnTypes.FIELD_TYPE_JSON => this.stringDecoder
       case ColumnTypes.FIELD_TYPE_BLOB |
            ColumnTypes.FIELD_TYPE_LONG_BLOB |
            ColumnTypes.FIELD_TYPE_MEDIUM_BLOB |
