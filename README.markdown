@@ -1,7 +1,7 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- This project is not being maintained anymore, feel free to fork and work on it
+- This project is not being maintained anymore. Maintained fork: https://github.com/dealermade/postgresql-async
 	- [Abstractions and integrations](#abstractions-and-integrations)
 	- [Include them as dependencies](#include-them-as-dependencies)
 	- [Database connections and encodings](#database-connections-and-encodings)
